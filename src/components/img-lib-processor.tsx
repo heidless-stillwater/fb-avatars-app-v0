@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useMemo, useRef, ChangeEvent } from 'react';
@@ -31,6 +32,7 @@ import {
   List,
   Grid,
   Image as ImageIcon,
+  LayoutGrid,
 } from 'lucide-react';
 
 import { useToast } from '@/hooks/use-toast';
@@ -80,6 +82,7 @@ import {
   useMemoFirebase,
 } from '@/firebase';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { cn } from '@/lib/utils';
 
 interface LibImageRecord {
   id: string;
@@ -97,7 +100,7 @@ type DialogState =
   | { type: 'delete'; record: LibImageRecord }
   | null;
 
-type ViewMode = 'list' | 'grid';
+type ViewMode = 'list' | 'grid' | 'small' | 'medium' | 'large' | 'extra-large';
 
 const ImageGridItem = ({ record, onOpenDialog }: { record: LibImageRecord, onOpenDialog: (state: DialogState) => void }) => (
     <Card className="w-full group">
@@ -182,7 +185,7 @@ export default function ImgLibProcessor() {
   const { toast } = useToast();
 
   const [dialogState, setDialogState] = useState<DialogState>(null);
-  const [view, setView] = useState<ViewMode>('grid');
+  const [view, setView] = useState<ViewMode>('small');
 
   const [imageName, setImageName] = useState('');
   const [imageDesc, setImageDesc] = useState('');
@@ -356,6 +359,23 @@ export default function ImgLibProcessor() {
     }
   };
 
+  const viewClasses: Record<ViewMode, string> = {
+    list: "flex flex-col gap-1",
+    grid: "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5",
+    small: "grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8",
+    medium: "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5",
+    large: "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4",
+    "extra-large": "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
+  };
+
+  const CurrentViewIcon = useMemo(() => {
+    switch(view) {
+        case 'list': return List;
+        default: return LayoutGrid;
+    }
+  }, [view]);
+
+
   return (
     <TooltipProvider>
       <Card>
@@ -375,7 +395,7 @@ export default function ImgLibProcessor() {
                             <TooltipTrigger asChild>
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="outline" size="icon">
-                                        {view === 'grid' ? <Grid /> : <List />}
+                                        <CurrentViewIcon className='h-4 w-4' />
                                         <span className="sr-only">View Options</span>
                                     </Button>
                                 </DropdownMenuTrigger>
@@ -385,8 +405,12 @@ export default function ImgLibProcessor() {
                         <DropdownMenuContent>
                             <DropdownMenuLabel>Display</DropdownMenuLabel>
                             <DropdownMenuRadioGroup value={view} onValueChange={(v) => setView(v as ViewMode)}>
-                                <DropdownMenuRadioItem value="grid">Grid</DropdownMenuRadioItem>
                                 <DropdownMenuRadioItem value="list">List</DropdownMenuRadioItem>
+                                <DropdownMenuRadioItem value="grid">Grid</DropdownMenuRadioItem>
+                                <DropdownMenuRadioItem value="small">Small Grid</DropdownMenuRadioItem>
+                                <DropdownMenuRadioItem value="medium">Medium Grid</DropdownMenuRadioItem>
+                                <DropdownMenuRadioItem value="large">Large Grid</DropdownMenuRadioItem>
+                                <DropdownMenuRadioItem value="extra-large">Extra Large Grid</DropdownMenuRadioItem>
                             </DropdownMenuRadioGroup>
                         </DropdownMenuContent>
                     </DropdownMenu>
@@ -409,13 +433,13 @@ export default function ImgLibProcessor() {
             )}
             
             {!libImagesLoading && libImages && libImages.length > 0 ? (
-                 view === 'grid' ? (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                        {libImages.map(image => <ImageGridItem key={image.id} record={image} onOpenDialog={openDialog}/>)}
-                    </div>
-                 ) : (
+                 view === 'list' ? (
                     <div className="flex flex-col gap-1 border rounded-lg p-2">
                         {libImages.map(image => <ImageListItem key={image.id} record={image} onOpenDialog={openDialog} />)}
+                    </div>
+                 ) : (
+                    <div className={cn("grid gap-4", viewClasses[view])}>
+                        {libImages.map(image => <ImageGridItem key={image.id} record={image} onOpenDialog={openDialog}/>)}
                     </div>
                  )
             ) : (
@@ -484,3 +508,4 @@ export default function ImgLibProcessor() {
   );
 }
 
+    

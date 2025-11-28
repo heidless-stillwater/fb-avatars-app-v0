@@ -361,6 +361,7 @@ export default function AvatarsProcessor() {
                 timestamp: serverTimestamp(),
             };
             await addDoc(collection(firestore, `users/${user.uid}/avatarImgLib`), libImgData);
+            toast({ title: 'Image saved to library' });
         }
   
       } else if (dialogState.type === 'edit') {
@@ -371,7 +372,6 @@ export default function AvatarsProcessor() {
           avatarPrompt,
         };
   
-        let newImageGenerated = false;
         if (avatarFile || generatedAvatarUrl) {
           const fileToUpload = generatedAvatarUrl ? generatedAvatarUrl : avatarFile!;
           const fileName = generatedAvatarUrl ? `${effectivePrompt.substring(0, 20) || 'avatar'}.png` : avatarFile!.name;
@@ -381,7 +381,6 @@ export default function AvatarsProcessor() {
           updatedData.avatarStoragePath = storagePath;
   
           if (generatedAvatarUrl) {
-            newImageGenerated = true;
             const libImgData = {
                 userId: user.uid,
                 libImgName: avatarName,
@@ -390,6 +389,7 @@ export default function AvatarsProcessor() {
                 timestamp: serverTimestamp(),
             };
             await addDoc(collection(firestore, `users/${user.uid}/avatarImgLib`), libImgData);
+            toast({ title: 'Image saved to library' });
           }
 
           // Delete old image only if a new one was uploaded/generated

@@ -37,7 +37,10 @@ import {
   Download,
   Upload,
   Save,
+  DownloadCloud,
 } from 'lucide-react';
+import JSZip from 'jszip';
+
 
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -235,7 +238,7 @@ export default function ImgLibProcessor() {
   const libQuery = useMemoFirebase(() => {
     if (!user) return null;
     const baseCollection = collection(firestore, `users/${user.uid}/avatarImgLib`);
-    if(filterCategory) {
+    if(filterCategory && filterCategory !== 'all') {
         return query(baseCollection, where('libImgCategory', '==', filterCategory), orderBy('timestamp', 'desc'));
     }
     return query(baseCollection, orderBy('timestamp', 'desc'));
@@ -247,7 +250,7 @@ export default function ImgLibProcessor() {
   }, [firestore, user]);
 
   const { data: libImages, isLoading: libImagesLoading } = useCollection<LibImageRecord>(libQuery);
-  const { data: allLibImages } = useCollection<LibImageRecord>(allLibImagesQuery);
+  const { data: allLibImages, isLoading: allLibImagesLoading } = useCollection<LibImageRecord>(allLibImagesQuery);
 
   const categoriesQuery = useMemoFirebase(() => {
     if (!user) return null;
@@ -319,7 +322,10 @@ export default function ImgLibProcessor() {
       const blob = await response.blob();
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
-      link.download = record.libImgName;
+      
+      const fileExtension = record.libImg.split('.').pop()?.split('?')[0] || 'jpg';
+      link.download = `${record.libImgName}.${fileExtension}`;
+
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -333,6 +339,51 @@ export default function ImgLibProcessor() {
       });
     }
   };
+
+  const handleDownloadAll = async () => {
+    if (!allLibImages || allLibImages.length === 0) {
+        toast({ variant: 'destructive', title: 'No Images', description: 'There are no images in the library to download.'});
+        return;
+    }
+
+    setIsLoadingAction(true);
+    toast({ title: 'Preparing Download', description: `Compressing ${allLibImages.length} images... This may take a moment.`});
+
+    try {
+        const zip = new JSZip();
+        
+        const imagePromises = allLibImages.map(async (image) => {
+            const response = await fetch(image.libImg);
+            if (!response.ok) {
+                console.warn(`Failed to fetch image: ${image.libImgName}`);
+                return;
+            }
+            const blob = await response.blob();
+            const fileExtension = image.libImg.split('.').pop()?.split('?')[0] || 'jpg';
+            const fileName = `${image.libImgCategory ? `${image.libImgCategory}/` : ''}${image.libImgName}.${fileExtension}`;
+            zip.file(fileName, blob);
+        });
+
+        await Promise.all(imagePromises);
+
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(zipBlob);
+        link.download = `image-library-backup-${formatISO(new Date(), { representation: 'date' })}.zip`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(link.href);
+
+        toast({ title: 'Download Ready!', description: 'Your image library has been downloaded as a ZIP file.' });
+
+    } catch (error) {
+        console.error('Download all error:', error);
+        toast({ variant: 'destructive', title: 'Download All Failed', description: 'Could not create ZIP file.' });
+    } finally {
+        setIsLoadingAction(false);
+    }
+};
 
   const handleBackup = () => {
     if (!allLibImages || allLibImages.length === 0) {
@@ -384,7 +435,6 @@ export default function ImgLibProcessor() {
 
             const backupData: any[] = JSON.parse(content);
             
-            // Basic validation
             if (!Array.isArray(backupData)) throw new Error("Invalid backup format: not an array.");
             
             const batch = writeBatch(firestore);
@@ -392,14 +442,14 @@ export default function ImgLibProcessor() {
             let count = 0;
 
             backupData.forEach(item => {
-                if (item.libImgName && item.libImg && item.userId) { // More robust validation could be added
-                    const docRef = doc(collectionRef); // Generate new ID for each restored item
+                if (item.libImgName && item.libImg && item.userId) { 
+                    const docRef = doc(collectionRef); 
                     const restoredItem = {
                         ...item,
-                        userId: user.uid, // Ensure ownership is correct
-                        timestamp: new Date(item.timestamp) // Convert ISO string back to Date for Firestore
+                        userId: user.uid, 
+                        timestamp: new Date(item.timestamp) 
                     };
-                    delete restoredItem.id; // Remove old ID if it exists
+                    delete restoredItem.id; 
                     batch.set(docRef, restoredItem);
                     count++;
                 }
@@ -443,8 +493,8 @@ export default function ImgLibProcessor() {
                 const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
                 setUploadProgress(progress);
             },
-            reject, // on error
-            async () => { // on success
+            reject, 
+            async () => { 
                 try {
                     const url = await getDownloadURL(uploadTask.snapshot.ref);
                     resolve({ downloadURL: url, storagePath });
@@ -593,7 +643,7 @@ export default function ImgLibProcessor() {
                               <DropdownMenuTrigger asChild>
                                   <Button variant="outline">
                                       <Filter className='mr-2 h-4 w-4' />
-                                      {filterCategory || 'All Categories'}
+                                      {filterCategory === 'all' || !filterCategory ? 'All Categories' : filterCategory}
                                   </Button>
                               </DropdownMenuTrigger>
                           </TooltipTrigger>
@@ -601,8 +651,8 @@ export default function ImgLibProcessor() {
                       </Tooltip>
                       <DropdownMenuContent>
                           <DropdownMenuLabel>Category</DropdownMenuLabel>
-                          <DropdownMenuRadioGroup value={filterCategory || ''} onValueChange={(v) => setFilterCategory(v === '' ? null : v)}>
-                              <DropdownMenuRadioItem value="">All Categories</DropdownMenuRadioItem>
+                          <DropdownMenuRadioGroup value={filterCategory || 'all'} onValueChange={(v) => setFilterCategory(v)}>
+                              <DropdownMenuRadioItem value="all">All Categories</DropdownMenuRadioItem>
                               <DropdownMenuSeparator/>
                               {categoriesLoading ? <DropdownMenuItem disabled>Loading...</DropdownMenuItem> :
                                 sortedCategories.map(cat => <DropdownMenuRadioItem key={cat.id} value={cat.name}>{cat.name}</DropdownMenuRadioItem>)
@@ -610,6 +660,14 @@ export default function ImgLibProcessor() {
                           </DropdownMenuRadioGroup>
                       </DropdownMenuContent>
                   </DropdownMenu>
+                  <Tooltip>
+                      <TooltipTrigger asChild>
+                           <Button variant="outline" size="icon" onClick={handleDownloadAll} disabled={allLibImagesLoading || !allLibImages || allLibImages.length === 0 || isLoadingAction}>
+                              {isLoadingAction ? <Loader2 className="h-4 w-4 animate-spin" /> : <DownloadCloud className="h-4 w-4" />}
+                          </Button>
+                      </TooltipTrigger>
+                      <TooltipContent><p>Download All as ZIP</p></TooltipContent>
+                  </Tooltip>
                    <Tooltip>
                         <TooltipTrigger asChild>
                              <Button variant="outline" size="icon" onClick={handleBackup} disabled={!allLibImages || allLibImages.length === 0}>

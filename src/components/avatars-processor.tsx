@@ -197,6 +197,7 @@ export default function AvatarsProcessor() {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [generatedAvatarUrl, setGeneratedAvatarUrl] = useState<string | null>(null);
   const [generateWithAI, setGenerateWithAI] = useState(false);
+  const [testRun, setTestRun] = useState(false);
 
   const [isLoadingAction, setIsLoadingAction] = useState(false);
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
@@ -223,6 +224,7 @@ export default function AvatarsProcessor() {
         setAvatarFile(null);
     }
     setGenerateWithAI(false);
+    setTestRun(false);
     setGeneratedAvatarUrl(null);
     setDialogState(state);
   };
@@ -285,10 +287,15 @@ export default function AvatarsProcessor() {
     }
     setIsGeneratingAI(true);
     try {
-        const result = await generateAvatar({ prompt: avatarPrompt });
-        setGeneratedAvatarUrl(result.avatarImageUrl);
-        setAvatarFile(null);
-        toast({ title: 'Success', description: 'New avatar image generated.' });
+        if (testRun) {
+            await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate AI delay
+            toast({ title: 'Success (Test Run)', description: 'Simulated AI image generation.' });
+        } else {
+            const result = await generateAvatar({ prompt: avatarPrompt });
+            setGeneratedAvatarUrl(result.avatarImageUrl);
+            setAvatarFile(null);
+            toast({ title: 'Success', description: 'New avatar image generated.' });
+        }
     } catch(err) {
         console.error(err);
         toast({ variant: 'destructive', title: 'AI Generation Failed', description: 'Could not generate image from prompt.'});
@@ -470,14 +477,25 @@ export default function AvatarsProcessor() {
                             <Textarea id="avatarPrompt" value={avatarPrompt} onChange={e => setAvatarPrompt(e.target.value)} placeholder="The prompt used to generate this avatar (optional)" disabled={isLoadingAction} />
                         </div>
                         
-                        <div className="flex items-center space-x-2">
-                            <Checkbox 
-                                id="gen-with-ai" 
-                                checked={generateWithAI}
-                                onCheckedChange={(checked) => setGenerateWithAI(checked as boolean)}
-                                disabled={isLoadingAction}
-                            />
-                            <Label htmlFor="gen-with-ai">Generate Image with AI</Label>
+                        <div className="flex items-center space-x-4">
+                            <div className="flex items-center space-x-2">
+                                <Checkbox 
+                                    id="gen-with-ai" 
+                                    checked={generateWithAI}
+                                    onCheckedChange={(checked) => setGenerateWithAI(checked as boolean)}
+                                    disabled={isLoadingAction}
+                                />
+                                <Label htmlFor="gen-with-ai">Generate Image with AI</Label>
+                            </div>
+                             <div className="flex items-center space-x-2">
+                                <Checkbox 
+                                    id="test" 
+                                    checked={testRun}
+                                    onCheckedChange={(checked) => setTestRun(checked as boolean)}
+                                    disabled={isLoadingAction || !generateWithAI}
+                                />
+                                <Label htmlFor="test">Test Run</Label>
+                            </div>
                         </div>
 
                         {generateWithAI ? (

@@ -453,6 +453,10 @@ export default function AvatarsProcessor() {
                             <Label htmlFor="gen-with-ai">Generate Image with AI</Label>
                         </div>
                     )}
+                    
+                    {dialogState?.type === 'edit' && generateWithAI && (
+                        <Button id="gen-but" onClick={() => {}}>Gen with AI</Button>
+                    )}
 
 
                     {uploadProgress !== null && <Progress value={uploadProgress} />}

@@ -19,7 +19,6 @@ import {
   getDownloadURL,
   deleteObject,
   uploadString,
-  UploadTask,
 } from 'firebase/storage';
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
@@ -261,7 +260,7 @@ export default function AvatarsProcessor() {
     setUploadProgress(0);
 
     if (typeof file === 'string') {
-        // Handle data URL upload (no progress tracking)
+        // Handle data URL upload (no progress tracking available with uploadString)
         const uploadResult = await uploadString(fileStorageRef, file, 'data_url');
         setUploadProgress(100);
         const downloadURL = await getDownloadURL(uploadResult.ref);
@@ -269,7 +268,7 @@ export default function AvatarsProcessor() {
         return { downloadURL, storagePath };
     } else {
         // Handle File upload (with progress tracking)
-        const uploadTask: UploadTask = uploadBytesResumable(fileStorageRef, file);
+        const uploadTask = uploadBytesResumable(fileStorageRef, file);
 
         return new Promise((resolve, reject) => {
             uploadTask.on('state_changed',

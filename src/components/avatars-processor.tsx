@@ -34,6 +34,7 @@ import {
   Grid,
   UserCircle,
   Wand2,
+  Save,
 } from 'lucide-react';
 
 import { useToast } from '@/hooks/use-toast';
@@ -201,6 +202,7 @@ export default function AvatarsProcessor() {
 
   const [isLoadingAction, setIsLoadingAction] = useState(false);
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [isSavingToLib, setIsSavingToLib] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -321,6 +323,34 @@ export default function AvatarsProcessor() {
     }
   };
 
+  const handleSaveToLibrary = async () => {
+    if (!user || !generatedAvatarUrl || !avatarName.trim()) {
+        toast({ variant: "destructive", title: "Missing Information", description: "Avatar name and a generated image are required." });
+        return;
+    }
+
+    setIsSavingToLib(true);
+    try {
+        const fileName = `${effectivePrompt.substring(0, 20) || 'avatar'}.png`;
+        const { downloadURL } = await uploadImage(generatedAvatarUrl, user.uid, fileName);
+
+        const libImgData = {
+            userId: user.uid,
+            libImgName: avatarName,
+            libImg: downloadURL,
+            libImgDesc: avatarDesc,
+            timestamp: serverTimestamp(),
+        };
+        await addDoc(collection(firestore, `users/${user.uid}/avatarImgLib`), libImgData);
+        toast({ title: 'Image saved to library' });
+    } catch (error) {
+        console.error("Save to library failed:", error);
+        toast({ variant: 'destructive', title: 'Error', description: 'Could not save image to library.' });
+    } finally {
+        setIsSavingToLib(false);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!user || !dialogState || !avatarName.trim()) {
       toast({ variant: "destructive", title: "Missing Information", description: "Avatar name is required." });
@@ -382,24 +412,11 @@ export default function AvatarsProcessor() {
         toast({ title: 'Success', description: 'Avatar updated.' });
 
         if (downloadURL && storagePath) {
-            // Delete old image only if a new one was uploaded/generated and successfully saved
             if (dialogState.record.avatarStoragePath) {
                 const oldImageRef = storageRef(storage, dialogState.record.avatarStoragePath);
                 await deleteObject(oldImageRef).catch(err => console.warn("Could not delete old image:", err));
             }
         }
-      }
-
-      if (wasAIGenerated && downloadURL) {
-          const libImgData = {
-              userId: user.uid,
-              libImgName: avatarName,
-              libImg: downloadURL,
-              libImgDesc: avatarDesc,
-              timestamp: serverTimestamp(),
-          };
-          await addDoc(collection(firestore, `users/${user.uid}/avatarImgLib`), libImgData);
-          toast({ title: 'Image saved to library' });
       }
 
       closeDialog();
@@ -546,10 +563,14 @@ export default function AvatarsProcessor() {
                         </div>
 
                         {generateWithAI ? (
-                            <div className="space-y-2">
-                               <Button id="gen-but" onClick={handleGenWithAI} disabled={isGeneratingAI || isLoadingAction || !effectivePrompt.trim()} className="w-full">
+                            <div className="flex gap-2">
+                               <Button id="gen-but" onClick={handleGenWithAI} disabled={isGeneratingAI || isLoadingAction || !effectivePrompt.trim()} className="flex-1">
                                     {isGeneratingAI ? <Loader2 className="animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
                                     Gen with AI
+                                </Button>
+                                <Button id="save-image" onClick={handleSaveToLibrary} disabled={isSavingToLib || !generatedAvatarUrl} variant="secondary" className="flex-1">
+                                    {isSavingToLib ? <Loader2 className="animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                                    Save Image to Library
                                 </Button>
                             </div>
                         ) : (
@@ -609,3 +630,5 @@ export default function AvatarsProcessor() {
     </TooltipProvider>
   );
 }
+
+    

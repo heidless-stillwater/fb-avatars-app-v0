@@ -14,6 +14,7 @@ import {
   orderBy,
   Timestamp,
   where,
+  writeBatch,
 } from 'firebase/firestore';
 import {
   ref as storageRef,
@@ -22,7 +23,7 @@ import {
   deleteObject,
 } from 'firebase/storage';
 import { v4 as uuidv4 } from 'uuid';
-import { format } from 'date-fns';
+import { format, formatISO } from 'date-fns';
 import {
   MoreVertical,
   Plus,
@@ -34,6 +35,8 @@ import {
   LayoutGrid,
   Filter,
   Download,
+  Upload,
+  Save,
 } from 'lucide-react';
 
 import { useToast } from '@/hooks/use-toast';
@@ -71,6 +74,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import {
     Select,
@@ -114,6 +118,7 @@ type DialogState =
   | { type: 'create' }
   | { type: 'edit'; record: LibImageRecord }
   | { type: 'delete'; record: LibImageRecord }
+  | { type: 'restore' }
   | null;
 
 type ViewMode = 'list' | 'grid' | 'small' | 'medium' | 'large' | 'extra-large';
@@ -219,6 +224,7 @@ export default function ImgLibProcessor() {
   const [imageDesc, setImageDesc] = useState('');
   const [imageCategory, setImageCategory] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [restoreFile, setRestoreFile] = useState<File | null>(null);
 
   const [isLoadingAction, setIsLoadingAction] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
@@ -233,7 +239,13 @@ export default function ImgLibProcessor() {
     return query(baseCollection, orderBy('timestamp', 'desc'));
   }, [firestore, user, filterCategory]);
 
+  const allLibImagesQuery = useMemoFirebase(() => {
+    if(!user) return null;
+    return query(collection(firestore, `users/${user.uid}/avatarImgLib`), orderBy('timestamp', 'desc'));
+  }, [firestore, user]);
+
   const { data: libImages, isLoading: libImagesLoading } = useCollection<LibImageRecord>(libQuery);
+  const { data: allLibImages } = useCollection<LibImageRecord>(allLibImagesQuery);
 
   const categoriesQuery = useMemoFirebase(() => {
     if (!user) return null;
@@ -258,6 +270,7 @@ export default function ImgLibProcessor() {
         setImageDesc('');
         setImageCategory('uncategorized');
         setImageFile(null);
+        setRestoreFile(null);
     }
     setDialogState(state);
   };
@@ -317,6 +330,102 @@ export default function ImgLibProcessor() {
         description: `Could not download "${record.libImgName}".`,
       });
     }
+  };
+
+  const handleBackup = () => {
+    if (!allLibImages || allLibImages.length === 0) {
+        toast({ variant: 'destructive', title: 'Backup Failed', description: 'There are no images in the library to back up.'});
+        return;
+    }
+
+    const backupData = allLibImages.map(img => ({
+        ...img,
+        timestamp: img.timestamp.toDate().toISOString() // Convert Firestore Timestamp to ISO string
+    }));
+
+    const jsonString = JSON.stringify(backupData, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `image-library-backup-${formatISO(new Date(), { representation: 'date' })}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast({ title: 'Backup Successful', description: `${allLibImages.length} image records have been saved.`});
+  };
+
+  const handleRestoreFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && file.type === 'application/json') {
+        setRestoreFile(file);
+    } else {
+        toast({ variant: 'destructive', title: 'Invalid File', description: 'Please select a valid JSON backup file.' });
+        setRestoreFile(null);
+    }
+  };
+
+  const handleRestore = async () => {
+    if (!restoreFile || !user) {
+        toast({ variant: 'destructive', title: 'Restore Failed', description: 'Please select a backup file to restore.' });
+        return;
+    }
+    
+    setIsLoadingAction(true);
+    const reader = new FileReader();
+
+    reader.onload = async (e) => {
+        try {
+            const content = e.target?.result;
+            if (typeof content !== 'string') throw new Error("Failed to read file content.");
+
+            const backupData: any[] = JSON.parse(content);
+            
+            // Basic validation
+            if (!Array.isArray(backupData)) throw new Error("Invalid backup format: not an array.");
+            
+            const batch = writeBatch(firestore);
+            const collectionRef = collection(firestore, `users/${user.uid}/avatarImgLib`);
+            let count = 0;
+
+            backupData.forEach(item => {
+                if (item.libImgName && item.libImg && item.userId) { // More robust validation could be added
+                    const docRef = doc(collectionRef); // Generate new ID for each restored item
+                    const restoredItem = {
+                        ...item,
+                        id: docRef.id,
+                        userId: user.uid, // Ensure ownership is correct
+                        timestamp: new Date(item.timestamp) // Convert ISO string back to Date for Firestore
+                    };
+                    batch.set(docRef, restoredItem);
+                    count++;
+                }
+            });
+            
+            await batch.commit();
+
+            toast({ title: 'Restore Successful', description: `Restored ${count} image records. The page will now reload.` });
+            
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
+
+        } catch (error: any) {
+            console.error("Restore error:", error);
+            toast({ variant: 'destructive', title: 'Restore Failed', description: error.message || 'Could not process backup file.' });
+        } finally {
+            setIsLoadingAction(false);
+            closeDialog();
+        }
+    };
+    
+    reader.onerror = () => {
+        toast({ variant: 'destructive', title: 'Error Reading File', description: 'Could not read the selected backup file.' });
+        setIsLoadingAction(false);
+    };
+
+    reader.readAsText(restoreFile);
   };
   
   const uploadImage = async (file: File, userId: string): Promise<{ downloadURL: string, storagePath: string }> => {
@@ -475,7 +584,7 @@ export default function ImgLibProcessor() {
       <CardContent>
         <div className="space-y-4">
             <div className="flex justify-between items-center">
-                <div>
+                <div className='flex gap-2 items-center'>
                   <DropdownMenu>
                       <Tooltip>
                           <TooltipTrigger asChild>
@@ -499,6 +608,22 @@ export default function ImgLibProcessor() {
                           </DropdownMenuRadioGroup>
                       </DropdownMenuContent>
                   </DropdownMenu>
+                   <Tooltip>
+                        <TooltipTrigger asChild>
+                             <Button variant="outline" size="icon" onClick={handleBackup} disabled={!allLibImages || allLibImages.length === 0}>
+                                <Save className="h-4 w-4" />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent><p>Backup Library to JSON</p></TooltipContent>
+                    </Tooltip>
+                     <Tooltip>
+                        <TooltipTrigger asChild>
+                             <Button variant="outline" size="icon" onClick={() => openDialog({ type: 'restore' })}>
+                                <Upload className="h-4 w-4" />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent><p>Restore Library from JSON</p></TooltipContent>
+                    </Tooltip>
                 </div>
                 <div className='flex gap-2'>
                     <DropdownMenu>
@@ -564,49 +689,74 @@ export default function ImgLibProcessor() {
             )}
         </div>
 
-        {/* Create/Edit Dialog */}
-        <Dialog open={dialogState?.type === 'create' || dialogState?.type === 'edit'} onOpenChange={(isOpen) => !isOpen && closeDialog()}>
+        {/* Create/Edit/Restore Dialog */}
+        <Dialog open={!!dialogState && (dialogState.type === 'create' || dialogState.type === 'edit' || dialogState.type === 'restore')} onOpenChange={(isOpen) => !isOpen && closeDialog()}>
             <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
-                    <DialogTitle>{dialogState?.type === 'create' ? 'Add New Image' : 'Edit Image Details'}</DialogTitle>
+                    <DialogTitle>
+                        {dialogState?.type === 'create' ? 'Add New Image' : 
+                         dialogState?.type === 'edit' ? 'Edit Image Details' :
+                         'Restore Library from Backup'}
+                    </DialogTitle>
+                    {dialogState?.type === 'restore' && (
+                        <DialogDescription>
+                            Select a JSON backup file. This will add all images from the file to your current library. It will not delete existing images.
+                        </DialogDescription>
+                    )}
                 </DialogHeader>
-                <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="imageName">Image Name</Label>
-                        <Input id="imageName" value={imageName} onChange={e => setImageName(e.target.value)} disabled={isLoadingAction} />
+                {dialogState?.type === 'restore' ? (
+                    <div className='py-4 space-y-4'>
+                        <div className="space-y-2">
+                            <Label htmlFor="restoreFile">Backup File (.json)</Label>
+                            <Input id="restoreFile" type="file" accept="application/json" onChange={handleRestoreFileChange} disabled={isLoadingAction} />
+                        </div>
+                        {restoreFile && <p className="text-sm text-muted-foreground">Selected: {restoreFile.name}</p>}
                     </div>
-                     <div className="space-y-2">
-                        <Label htmlFor="imageCategory">Category</Label>
-                        <Select value={imageCategory} onValueChange={setImageCategory} disabled={isLoadingAction}>
-                            <SelectTrigger id="imageCategory">
-                                <SelectValue placeholder="Select a category" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="uncategorized">Uncategorized</SelectItem>
-                                {categoriesLoading ? <SelectItem value="loading" disabled>Loading...</SelectItem> :
-                                  sortedCategories.map(cat => <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>)
-                                }
-                            </SelectContent>
-                        </Select>
+                ) : (
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="imageName">Image Name</Label>
+                            <Input id="imageName" value={imageName} onChange={e => setImageName(e.target.value)} disabled={isLoadingAction} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="imageCategory">Category</Label>
+                            <Select value={imageCategory} onValueChange={setImageCategory} disabled={isLoadingAction}>
+                                <SelectTrigger id="imageCategory">
+                                    <SelectValue placeholder="Select a category" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="uncategorized">Uncategorized</SelectItem>
+                                    {categoriesLoading ? <SelectItem value="loading" disabled>Loading...</SelectItem> :
+                                    sortedCategories.map(cat => <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>)
+                                    }
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="imageDesc">Description</Label>
+                            <Textarea id="imageDesc" value={imageDesc} onChange={e => setImageDesc(e.target.value)} placeholder="A brief description (optional)" disabled={isLoadingAction} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="imageFile">
+                                {dialogState?.type === 'create' ? 'Image File' : 'Replace Image (Optional)'}
+                            </Label>
+                            <Input id="imageFile" type="file" accept="image/*" ref={fileInputRef} onChange={handleFileChange} disabled={isLoadingAction} />
+                        </div>
+                        {imageFile && <p className="text-sm text-muted-foreground">New image: {imageFile.name}</p>}
+                        {uploadProgress !== null && <Progress value={uploadProgress} />}
                     </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="imageDesc">Description</Label>
-                        <Textarea id="imageDesc" value={imageDesc} onChange={e => setImageDesc(e.target.value)} placeholder="A brief description (optional)" disabled={isLoadingAction} />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="imageFile">
-                            {dialogState?.type === 'create' ? 'Image File' : 'Replace Image (Optional)'}
-                        </Label>
-                        <Input id="imageFile" type="file" accept="image/*" ref={fileInputRef} onChange={handleFileChange} disabled={isLoadingAction} />
-                    </div>
-                    {imageFile && <p className="text-sm text-muted-foreground">New image: {imageFile.name}</p>}
-                    {uploadProgress !== null && <Progress value={uploadProgress} />}
-                </div>
+                )}
                 <DialogFooter>
                     <Button variant="outline" onClick={closeDialog} disabled={isLoadingAction}>Cancel</Button>
-                    <Button onClick={handleSubmit} disabled={isLoadingAction || !imageName.trim() || (dialogState?.type === 'create' && !imageFile)}>
-                        {isLoadingAction ? <Loader2 className="animate-spin" /> : 'Save'}
-                    </Button>
+                     {dialogState?.type === 'restore' ? (
+                        <Button onClick={handleRestore} disabled={isLoadingAction || !restoreFile}>
+                            {isLoadingAction ? <Loader2 className="animate-spin" /> : 'Restore'}
+                        </Button>
+                    ) : (
+                        <Button onClick={handleSubmit} disabled={isLoadingAction || !imageName.trim() || (dialogState?.type === 'create' && !imageFile)}>
+                            {isLoadingAction ? <Loader2 className="animate-spin" /> : 'Save'}
+                        </Button>
+                    )}
                 </DialogFooter>
             </DialogContent>
         </Dialog>
@@ -634,4 +784,5 @@ export default function ImgLibProcessor() {
   );
 }
 
+    
     

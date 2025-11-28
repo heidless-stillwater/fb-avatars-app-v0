@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
@@ -16,6 +17,7 @@ import { useState } from "react";
 
 export default function AvatarsPage() {
     const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
+    const [isImageLibraryOpen, setIsImageLibraryOpen] = useState(true);
 
     return (
         <div className="p-4 sm:p-6 md:p-8 h-full space-y-8">
@@ -44,7 +46,20 @@ export default function AvatarsPage() {
                 </CollapsibleContent>
             </Collapsible>
             <Separator />
-            <ImgLibProcessor />
+             <Collapsible open={isImageLibraryOpen} onOpenChange={setIsImageLibraryOpen}>
+                <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-semibold">Image Library</h2>
+                    <CollapsibleTrigger asChild>
+                        <Button variant="ghost" size="sm" className="w-9 p-0">
+                            <ChevronsUpDown className="h-4 w-4" />
+                            <span className="sr-only">Toggle Image Library</span>
+                        </Button>
+                    </CollapsibleTrigger>
+                </div>
+                <CollapsibleContent className="space-y-4">
+                    <ImgLibProcessor />
+                </CollapsibleContent>
+            </Collapsible>
         </div>
     )
 }

@@ -629,18 +629,20 @@ export default function AvatarsProcessor() {
                             </div>
                         </div>
 
-                        {generateWithAI ? (
-                            <div className="flex gap-2">
+                        <div className="flex gap-2">
+                            {generateWithAI && (
                                <Button id="gen-but" onClick={handleGenWithAI} disabled={isGeneratingAI || isLoadingAction || !effectivePrompt.trim()} className="flex-1">
                                     {isGeneratingAI ? <Loader2 className="animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
                                     Gen with AI
                                 </Button>
-                                <Button id="save-image" onClick={handleSaveToLibrary} disabled={isSavingToLib || !generatedAvatarUrl} variant="secondary" className="flex-1">
-                                    {isSavingToLib ? <Loader2 className="animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                                    Save Image to Library
-                                </Button>
-                            </div>
-                        ) : (
+                            )}
+                            <Button id="save-image" onClick={handleSaveToLibrary} disabled={isSavingToLib || !generatedAvatarUrl} variant={generateWithAI ? "secondary" : "default"} className="flex-1">
+                                {isSavingToLib ? <Loader2 className="animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                                Save Image to Library
+                            </Button>
+                        </div>
+
+                        {!generateWithAI && (
                              <div className="space-y-2">
                                 <Label htmlFor="avatarFile">
                                     {dialogState?.type === 'create' ? 'Image' : 'Replace Image (Optional)'}
@@ -698,4 +700,5 @@ export default function AvatarsProcessor() {
   );
 }
 
+    
     

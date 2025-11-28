@@ -32,6 +32,7 @@ import {
   List,
   Grid,
   UserCircle,
+  Replace,
 } from 'lucide-react';
 
 import { useToast } from '@/hooks/use-toast';
@@ -209,7 +210,7 @@ export default function AvatarsProcessor() {
         setAvatarName(state.record.avatarName);
         setAvatarDesc(state.record.avatarDesc || '');
         setAvatarPrompt(state.record.avatarPrompt || '');
-        setAvatarFile(null); // Can't re-edit the file, only metadata
+        setAvatarFile(null);
     } else {
         setAvatarName('');
         setAvatarDesc('');
@@ -237,10 +238,28 @@ export default function AvatarsProcessor() {
       setAvatarFile(file);
     }
   };
+  
+  const uploadImage = async (file: File, userId: string): Promise<{ downloadURL: string, storagePath: string }> => {
+    const storagePath = `users/${userId}/avatarImages/${uuidv4()}-${file.name}`;
+    const fileStorageRef = storageRef(storage, storagePath);
+    const uploadTask = uploadBytesResumable(fileStorageRef, file);
+
+    const downloadURL = await new Promise<string>((resolve, reject) => {
+        uploadTask.on('state_changed',
+            (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
+            reject,
+            async () => {
+                const url = await getDownloadURL(uploadTask.snapshot.ref);
+                resolve(url);
+            }
+        );
+    });
+    return { downloadURL, storagePath };
+  };
 
   const handleSubmit = async () => {
-     if (!user || !dialogState || (dialogState.type === 'create' && !avatarFile) || !avatarName.trim()) {
-        toast({ variant: "destructive", title: "Missing Information", description: "Avatar name and image are required." });
+     if (!user || !dialogState || !avatarName.trim() || (dialogState.type === 'create' && !avatarFile) ) {
+        toast({ variant: "destructive", title: "Missing Information", description: "Avatar name is required. A new image is required for creation." });
         return;
      }
 
@@ -248,28 +267,16 @@ export default function AvatarsProcessor() {
      
      try {
         if (dialogState.type === 'create') {
-            const avatarStoragePath = `users/${user.uid}/avatarImages/${uuidv4()}-${avatarFile!.name}`;
-            const fileStorageRef = storageRef(storage, avatarStoragePath);
-            const uploadTask = uploadBytesResumable(fileStorageRef, avatarFile!);
-
-            const avatarImg = await new Promise<string>((resolve, reject) => {
-                uploadTask.on('state_changed',
-                    (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
-                    reject,
-                    async () => {
-                        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                        resolve(downloadURL);
-                    }
-                );
-            });
+            if(!avatarFile) throw new Error("No avatar file provided for creation.");
+            const { downloadURL, storagePath } = await uploadImage(avatarFile, user.uid);
             
             const avatarData = {
                 userId: user.uid,
                 avatarName,
                 avatarDesc,
                 avatarPrompt,
-                avatarImg,
-                avatarStoragePath,
+                avatarImg: downloadURL,
+                avatarStoragePath: storagePath,
                 timestamp: serverTimestamp(),
             };
             await addDoc(collection(firestore, `users/${user.uid}/avatarRecords`), avatarData);
@@ -277,11 +284,26 @@ export default function AvatarsProcessor() {
 
         } else if (dialogState.type === 'edit') {
             const docRef = doc(firestore, `users/${user.uid}/avatarRecords`, dialogState.record.id);
-            await updateDoc(docRef, {
+            const updatedData: Partial<AvatarRecord> = {
                 avatarName,
                 avatarDesc,
                 avatarPrompt,
-            });
+            };
+
+            if (avatarFile) {
+                // Upload new image
+                const { downloadURL, storagePath } = await uploadImage(avatarFile, user.uid);
+                updatedData.avatarImg = downloadURL;
+                updatedData.avatarStoragePath = storagePath;
+
+                // Delete old image
+                if (dialogState.record.avatarStoragePath) {
+                    const oldImageRef = storageRef(storage, dialogState.record.avatarStoragePath);
+                    await deleteObject(oldImageRef).catch(err => console.warn("Could not delete old image:", err));
+                }
+            }
+            
+            await updateDoc(docRef, updatedData);
             toast({ title: 'Success', description: 'Avatar updated.' });
         }
         closeDialog();
@@ -404,13 +426,20 @@ export default function AvatarsProcessor() {
                         <Label htmlFor="avatarPrompt">Prompt</Label>
                         <Textarea id="avatarPrompt" value={avatarPrompt} onChange={e => setAvatarPrompt(e.target.value)} placeholder="The prompt used to generate this avatar (optional)" disabled={isLoadingAction} />
                     </div>
-                    {dialogState?.type === 'create' && (
-                        <div className="space-y-2">
-                            <Label htmlFor="avatarFile">Image</Label>
+                    
+                    <div className="space-y-2">
+                        <Label htmlFor="avatarFile">
+                            {dialogState?.type === 'create' ? 'Image' : 'Replace Image (Optional)'}
+                        </Label>
+                        <div className='flex gap-2 items-center'>
+                             {dialogState?.type === 'edit' && dialogState.record.avatarImg &&
+                                <Image src={dialogState.record.avatarImg} alt="Current Avatar" width={40} height={40} className='rounded-full h-10 w-10 object-cover' />
+                             }
                             <Input id="avatarFile" type="file" accept="image/*" ref={fileInputRef} onChange={handleFileChange} disabled={isLoadingAction} />
-                            {avatarFile && <p className="text-sm text-muted-foreground">Selected: {avatarFile.name}</p>}
                         </div>
-                    )}
+                        {avatarFile && <p className="text-sm text-muted-foreground">New image: {avatarFile.name}</p>}
+                    </div>
+
                     {uploadProgress !== null && <Progress value={uploadProgress} />}
                 </div>
                 <DialogFooter>

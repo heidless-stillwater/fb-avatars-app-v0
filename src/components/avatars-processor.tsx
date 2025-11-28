@@ -18,6 +18,7 @@ import {
   uploadBytesResumable,
   getDownloadURL,
   deleteObject,
+  uploadString,
 } from 'firebase/storage';
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
@@ -32,7 +33,7 @@ import {
   List,
   Grid,
   UserCircle,
-  Replace,
+  Wand2,
 } from 'lucide-react';
 
 import { useToast } from '@/hooks/use-toast';
@@ -40,7 +41,6 @@ import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
@@ -85,6 +85,7 @@ import {
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { Checkbox } from './ui/checkbox';
+import { generateAvatar } from '@/ai/flows/generate-avatar-flow';
 
 interface AvatarRecord {
   id: string;
@@ -194,9 +195,11 @@ export default function AvatarsProcessor() {
   const [avatarDesc, setAvatarDesc] = useState('');
   const [avatarPrompt, setAvatarPrompt] = useState('');
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [generatedAvatarUrl, setGeneratedAvatarUrl] = useState<string | null>(null);
   const [generateWithAI, setGenerateWithAI] = useState(false);
 
   const [isLoadingAction, setIsLoadingAction] = useState(false);
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -220,6 +223,7 @@ export default function AvatarsProcessor() {
         setAvatarFile(null);
     }
     setGenerateWithAI(false);
+    setGeneratedAvatarUrl(null);
     setDialogState(state);
   };
 
@@ -239,25 +243,58 @@ export default function AvatarsProcessor() {
         return;
       }
       setAvatarFile(file);
+      setGeneratedAvatarUrl(null);
     }
   };
   
-  const uploadImage = async (file: File, userId: string): Promise<{ downloadURL: string, storagePath: string }> => {
-    const storagePath = `users/${userId}/avatarImages/${uuidv4()}-${file.name}`;
+  const uploadImage = async (file: File | string, userId: string, fileName: string): Promise<{ downloadURL: string, storagePath: string }> => {
+    const storagePath = `users/${userId}/avatarImages/${uuidv4()}-${fileName}`;
     const fileStorageRef = storageRef(storage, storagePath);
-    const uploadTask = uploadBytesResumable(fileStorageRef, file);
+    
+    let uploadTask;
+    if (typeof file === 'string') {
+        uploadTask = uploadString(fileStorageRef, file, 'data_url');
+    } else {
+        uploadTask = uploadBytesResumable(fileStorageRef, file);
+    }
 
     const downloadURL = await new Promise<string>((resolve, reject) => {
-        uploadTask.on('state_changed',
-            (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
-            reject,
-            async () => {
-                const url = await getDownloadURL(uploadTask.snapshot.ref);
+        if(typeof file !== 'string') {
+             (uploadTask as any).on('state_changed',
+                (snapshot: any) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
+                reject,
+                async () => {
+                    const url = await getDownloadURL((uploadTask as any).snapshot.ref);
+                    resolve(url);
+                }
+            );
+        } else {
+            uploadTask.then(async (snapshot) => {
+                const url = await getDownloadURL(snapshot.ref);
                 resolve(url);
-            }
-        );
+            }).catch(reject);
+        }
     });
     return { downloadURL, storagePath };
+  };
+
+  const handleGenWithAI = async () => {
+    if (!avatarPrompt) {
+        toast({ variant: 'destructive', title: 'Prompt is empty', description: 'Please enter a prompt to generate an image.'});
+        return;
+    }
+    setIsGeneratingAI(true);
+    try {
+        const result = await generateAvatar({ prompt: avatarPrompt });
+        setGeneratedAvatarUrl(result.avatarImageUrl);
+        setAvatarFile(null);
+        toast({ title: 'Success', description: 'New avatar image generated.' });
+    } catch(err) {
+        console.error(err);
+        toast({ variant: 'destructive', title: 'AI Generation Failed', description: 'Could not generate image from prompt.'});
+    } finally {
+        setIsGeneratingAI(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -271,7 +308,7 @@ export default function AvatarsProcessor() {
      try {
         if (dialogState.type === 'create') {
             if(!avatarFile) throw new Error("No avatar file provided for creation.");
-            const { downloadURL, storagePath } = await uploadImage(avatarFile, user.uid);
+            const { downloadURL, storagePath } = await uploadImage(avatarFile, user.uid, avatarFile.name);
             
             const avatarData = {
                 userId: user.uid,
@@ -293,9 +330,11 @@ export default function AvatarsProcessor() {
                 avatarPrompt,
             };
 
-            if (avatarFile) {
-                // Upload new image
-                const { downloadURL, storagePath } = await uploadImage(avatarFile, user.uid);
+            if (avatarFile || generatedAvatarUrl) {
+                const fileToUpload = generatedAvatarUrl ? generatedAvatarUrl : avatarFile!;
+                const fileName = generatedAvatarUrl ? `${avatarPrompt.substring(0, 20)}.png` : avatarFile!.name;
+                
+                const { downloadURL, storagePath } = await uploadImage(fileToUpload, user.uid, fileName);
                 updatedData.avatarImg = downloadURL;
                 updatedData.avatarStoragePath = storagePath;
 
@@ -412,7 +451,7 @@ export default function AvatarsProcessor() {
 
         {/* Create/Edit Dialog */}
         <Dialog open={dialogState?.type === 'create' || dialogState?.type === 'edit'} onOpenChange={(isOpen) => !isOpen && closeDialog()}>
-            <DialogContent>
+            <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle>{dialogState?.type === 'create' ? 'Create New Avatar' : 'Edit Avatar'}</DialogTitle>
                 </DialogHeader>
@@ -430,40 +469,51 @@ export default function AvatarsProcessor() {
                         <Textarea id="avatarPrompt" value={avatarPrompt} onChange={e => setAvatarPrompt(e.target.value)} placeholder="The prompt used to generate this avatar (optional)" disabled={isLoadingAction} />
                     </div>
                     
-                    <div className="space-y-2">
-                        <Label htmlFor="avatarFile">
-                            {dialogState?.type === 'create' ? 'Image' : 'Replace Image (Optional)'}
-                        </Label>
-                        <div className='flex gap-2 items-center'>
-                             {dialogState?.type === 'edit' && dialogState.record.avatarImg &&
-                                <Image src={dialogState.record.avatarImg} alt="Current Avatar" width={40} height={40} className='rounded-full h-10 w-10 object-cover' />
-                             }
-                            <Input id="avatarFile" type="file" accept="image/*" ref={fileInputRef} onChange={handleFileChange} disabled={isLoadingAction} />
-                        </div>
-                        {avatarFile && <p className="text-sm text-muted-foreground">New image: {avatarFile.name}</p>}
+                    <div className="flex items-center space-x-2">
+                        <Checkbox 
+                            id="gen-with-ai" 
+                            checked={generateWithAI}
+                            onCheckedChange={(checked) => setGenerateWithAI(checked as boolean)}
+                            disabled={isLoadingAction}
+                        />
+                        <Label htmlFor="gen-with-ai">Generate Image with AI</Label>
                     </div>
 
-                    {dialogState?.type === 'edit' && (
-                        <div className="flex items-center space-x-2">
-                            <Checkbox 
-                                id="gen-with-ai" 
-                                checked={generateWithAI}
-                                onCheckedChange={(checked) => setGenerateWithAI(checked as boolean)}
-                            />
-                            <Label htmlFor="gen-with-ai">Generate Image with AI</Label>
+                    {generateWithAI ? (
+                        <div className="space-y-2">
+                           <Button id="gen-but" onClick={handleGenWithAI} disabled={isGeneratingAI || isLoadingAction || !avatarPrompt.trim()} className="w-full">
+                                {isGeneratingAI ? <Loader2 className="animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                                Gen with AI
+                            </Button>
                         </div>
-                    )}
-                    
-                    {dialogState?.type === 'edit' && generateWithAI && (
-                        <Button id="gen-but" onClick={() => {}}>Gen with AI</Button>
+                    ) : (
+                         <div className="space-y-2">
+                            <Label htmlFor="avatarFile">
+                                {dialogState?.type === 'create' ? 'Image' : 'Replace Image (Optional)'}
+                            </Label>
+                            <Input id="avatarFile" type="file" accept="image/*" ref={fileInputRef} onChange={handleFileChange} disabled={isLoadingAction} />
+                         </div>
                     )}
 
+                    <div className="relative w-full aspect-square bg-muted rounded-md flex items-center justify-center overflow-hidden">
+                        { (avatarFile || generatedAvatarUrl || (dialogState?.type === 'edit' && dialogState.record.avatarImg)) ?
+                           <Image 
+                                src={generatedAvatarUrl || (avatarFile ? URL.createObjectURL(avatarFile) : dialogState?.type === 'edit' ? dialogState.record.avatarImg : '')} 
+                                alt="Avatar preview" 
+                                fill 
+                                className="object-cover"
+                            />
+                            : <UserCircle className="w-24 h-24 text-muted-foreground" />
+                        }
+                        {isGeneratingAI && <div className="absolute inset-0 bg-background/80 flex items-center justify-center"><Loader2 className="h-10 w-10 animate-spin" /></div>}
+                    </div>
 
+                    {avatarFile && !generateWithAI && <p className="text-sm text-muted-foreground">New image: {avatarFile.name}</p>}
                     {uploadProgress !== null && <Progress value={uploadProgress} />}
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={closeDialog} disabled={isLoadingAction}>Cancel</Button>
-                    <Button onClick={handleSubmit} disabled={isLoadingAction || !avatarName.trim() || (dialogState?.type === 'create' && !avatarFile)}>
+                    <Button onClick={handleSubmit} disabled={isLoadingAction || !avatarName.trim() || (dialogState?.type === 'create' && !avatarFile) || isGeneratingAI}>
                         {isLoadingAction ? <Loader2 className="animate-spin" /> : 'Save'}
                     </Button>
                 </DialogFooter>

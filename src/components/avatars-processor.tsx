@@ -610,6 +610,3 @@ export default function AvatarsProcessor() {
     </TooltipProvider>
   );
 }
-
-    
-    

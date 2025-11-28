@@ -224,7 +224,7 @@ export default function ImgLibProcessor() {
 
   const [imageName, setImageName] = useState('');
   const [imageDesc, setImageDesc] = useState('');
-  const [imageCategory, setImageCategory] = useState('');
+  const [imageCategory, setImageCategory] = useState('uncategorized');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [restoreFile, setRestoreFile] = useState<File | null>(null);
 
@@ -243,7 +243,7 @@ export default function ImgLibProcessor() {
 
   const allLibImagesQuery = useMemoFirebase(() => {
     if(!user) return null;
-    return query(collection(firestore, `users/${user.uid}/avatarImgLib`), orderBy('timestamp', 'desc'));
+    return query(collection(firestore, `users/${user.uid}/avatarImgLib`));
   }, [firestore, user]);
 
   const { data: libImages, isLoading: libImagesLoading } = useCollection<LibImageRecord>(libQuery);
@@ -396,10 +396,10 @@ export default function ImgLibProcessor() {
                     const docRef = doc(collectionRef); // Generate new ID for each restored item
                     const restoredItem = {
                         ...item,
-                        id: docRef.id,
                         userId: user.uid, // Ensure ownership is correct
                         timestamp: new Date(item.timestamp) // Convert ISO string back to Date for Firestore
                     };
+                    delete restoredItem.id; // Remove old ID if it exists
                     batch.set(docRef, restoredItem);
                     count++;
                 }
@@ -785,3 +785,5 @@ export default function ImgLibProcessor() {
     </TooltipProvider>
   );
 }
+
+    

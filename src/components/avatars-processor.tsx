@@ -451,65 +451,69 @@ export default function AvatarsProcessor() {
 
         {/* Create/Edit Dialog */}
         <Dialog open={dialogState?.type === 'create' || dialogState?.type === 'edit'} onOpenChange={(isOpen) => !isOpen && closeDialog()}>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-3xl">
                 <DialogHeader>
                     <DialogTitle>{dialogState?.type === 'create' ? 'Create New Avatar' : 'Edit Avatar'}</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="avatarName">Avatar Name</Label>
-                        <Input id="avatarName" value={avatarName} onChange={e => setAvatarName(e.target.value)} disabled={isLoadingAction} />
-                    </div>
-                     <div className="space-y-2">
-                        <Label htmlFor="avatarDesc">Description</Label>
-                        <Textarea id="avatarDesc" value={avatarDesc} onChange={e => setAvatarDesc(e.target.value)} placeholder="A brief description (optional)" disabled={isLoadingAction} />
-                    </div>
-                     <div className="space-y-2">
-                        <Label htmlFor="avatarPrompt">Prompt</Label>
-                        <Textarea id="avatarPrompt" value={avatarPrompt} onChange={e => setAvatarPrompt(e.target.value)} placeholder="The prompt used to generate this avatar (optional)" disabled={isLoadingAction} />
-                    </div>
-                    
-                    <div className="flex items-center space-x-2">
-                        <Checkbox 
-                            id="gen-with-ai" 
-                            checked={generateWithAI}
-                            onCheckedChange={(checked) => setGenerateWithAI(checked as boolean)}
-                            disabled={isLoadingAction}
-                        />
-                        <Label htmlFor="gen-with-ai">Generate Image with AI</Label>
-                    </div>
-
-                    {generateWithAI ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+                    <div className="space-y-4">
                         <div className="space-y-2">
-                           <Button id="gen-but" onClick={handleGenWithAI} disabled={isGeneratingAI || isLoadingAction || !avatarPrompt.trim()} className="w-full">
-                                {isGeneratingAI ? <Loader2 className="animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                                Gen with AI
-                            </Button>
+                            <Label htmlFor="avatarName">Avatar Name</Label>
+                            <Input id="avatarName" value={avatarName} onChange={e => setAvatarName(e.target.value)} disabled={isLoadingAction} />
                         </div>
-                    ) : (
-                         <div className="space-y-2">
-                            <Label htmlFor="avatarFile">
-                                {dialogState?.type === 'create' ? 'Image' : 'Replace Image (Optional)'}
-                            </Label>
-                            <Input id="avatarFile" type="file" accept="image/*" ref={fileInputRef} onChange={handleFileChange} disabled={isLoadingAction} />
-                         </div>
-                    )}
-
-                    <div className="relative w-full aspect-square bg-muted rounded-md flex items-center justify-center overflow-hidden">
-                        { (avatarFile || generatedAvatarUrl || (dialogState?.type === 'edit' && dialogState.record.avatarImg)) ?
-                           <Image 
-                                src={generatedAvatarUrl || (avatarFile ? URL.createObjectURL(avatarFile) : dialogState?.type === 'edit' ? dialogState.record.avatarImg : '')} 
-                                alt="Avatar preview" 
-                                fill 
-                                className="object-cover"
+                        <div className="space-y-2">
+                            <Label htmlFor="avatarDesc">Description</Label>
+                            <Textarea id="avatarDesc" value={avatarDesc} onChange={e => setAvatarDesc(e.target.value)} placeholder="A brief description (optional)" disabled={isLoadingAction} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="avatarPrompt">Prompt</Label>
+                            <Textarea id="avatarPrompt" value={avatarPrompt} onChange={e => setAvatarPrompt(e.target.value)} placeholder="The prompt used to generate this avatar (optional)" disabled={isLoadingAction} />
+                        </div>
+                        
+                        <div className="flex items-center space-x-2">
+                            <Checkbox 
+                                id="gen-with-ai" 
+                                checked={generateWithAI}
+                                onCheckedChange={(checked) => setGenerateWithAI(checked as boolean)}
+                                disabled={isLoadingAction}
                             />
-                            : <UserCircle className="w-24 h-24 text-muted-foreground" />
-                        }
-                        {isGeneratingAI && <div className="absolute inset-0 bg-background/80 flex items-center justify-center"><Loader2 className="h-10 w-10 animate-spin" /></div>}
+                            <Label htmlFor="gen-with-ai">Generate Image with AI</Label>
+                        </div>
+
+                        {generateWithAI ? (
+                            <div className="space-y-2">
+                               <Button id="gen-but" onClick={handleGenWithAI} disabled={isGeneratingAI || isLoadingAction || !avatarPrompt.trim()} className="w-full">
+                                    {isGeneratingAI ? <Loader2 className="animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                                    Gen with AI
+                                </Button>
+                            </div>
+                        ) : (
+                             <div className="space-y-2">
+                                <Label htmlFor="avatarFile">
+                                    {dialogState?.type === 'create' ? 'Image' : 'Replace Image (Optional)'}
+                                </Label>
+                                <Input id="avatarFile" type="file" accept="image/*" ref={fileInputRef} onChange={handleFileChange} disabled={isLoadingAction} />
+                             </div>
+                        )}
+                        {avatarFile && !generateWithAI && <p className="text-sm text-muted-foreground">New image: {avatarFile.name}</p>}
                     </div>
 
-                    {avatarFile && !generateWithAI && <p className="text-sm text-muted-foreground">New image: {avatarFile.name}</p>}
-                    {uploadProgress !== null && <Progress value={uploadProgress} />}
+                    <div className="space-y-2">
+                        <Label>Image Preview</Label>
+                        <div className="relative w-full aspect-square bg-muted rounded-md flex items-center justify-center overflow-hidden">
+                            { (avatarFile || generatedAvatarUrl || (dialogState?.type === 'edit' && dialogState.record.avatarImg)) ?
+                               <Image 
+                                    src={generatedAvatarUrl || (avatarFile ? URL.createObjectURL(avatarFile) : dialogState?.type === 'edit' ? dialogState.record.avatarImg : '')} 
+                                    alt="Avatar preview" 
+                                    fill 
+                                    className="object-cover"
+                                />
+                                : <UserCircle className="w-24 h-24 text-muted-foreground" />
+                            }
+                            {isGeneratingAI && <div className="absolute inset-0 bg-background/80 flex items-center justify-center"><Loader2 className="h-10 w-10 animate-spin" /></div>}
+                        </div>
+                        {uploadProgress !== null && <Progress value={uploadProgress} />}
+                    </div>
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={closeDialog} disabled={isLoadingAction}>Cancel</Button>

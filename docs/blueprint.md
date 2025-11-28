@@ -1,18 +1,19 @@
-# **App Name**: fb-avatars-app-v0
+# **App Name**: fb-base-app-8
 
 ## Core Features:
 
-- File Upload: Upload files of various formats to your personal storage.
-- File Listing: List all the files in a clean, organized view with details such as name, size, and upload date.
-- File Download: Download stored files to your local device.
-- File Deletion: Delete files from your storage.
+- File Upload: Upload files from the user's device to the storage.
+- File Download: Download files from the storage to the user's device.
+- File Deletion: Delete files from the storage.
+- File Listing: List all files in a given directory.
+- Folder Management: Create, rename, and delete folders.
 
 ## Style Guidelines:
 
-- Primary color: Sky blue (#87CEEB), reflecting clarity and organization.
-- Background color: Light gray (#F0F8FF) to provide a clean and unobtrusive backdrop.
-- Accent color: Teal (#008080) for interactive elements to draw attention without being distracting.
-- Body and headline font: 'Inter', a grotesque-style sans-serif with a modern, machined, objective, neutral look; suitable for headlines or body text
-- Use clear and intuitive icons for file actions (upload, download, delete) and file types (documents, images, videos).
-- Maintain a simple, grid-based layout for easy navigation and file management.
-- Incorporate subtle animations for file uploads and downloads to provide feedback to the user.
+- Primary color: Calm blue (#64B5F6), evoking trust and reliability.
+- Background color: Light, desaturated blue (#E3F2FD) for a clean and airy feel.
+- Accent color: A contrasting orange (#FFB74D) to highlight important actions like upload and download.
+- Body and headline font: 'Inter' for a modern, clean and readable interface.
+- Use a consistent set of material design icons for file actions and folder navigation.
+- Implement a clean, intuitive layout with a clear file directory structure.
+- Use subtle animations for file uploads, downloads, and deletions to provide visual feedback.

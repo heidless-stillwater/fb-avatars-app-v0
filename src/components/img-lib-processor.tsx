@@ -13,6 +13,7 @@ import {
   query,
   orderBy,
   Timestamp,
+  where,
 } from 'firebase/firestore';
 import {
   ref as storageRef,
@@ -33,6 +34,7 @@ import {
   Grid,
   Image as ImageIcon,
   LayoutGrid,
+  Filter,
 } from 'lucide-react';
 
 import { useToast } from '@/hooks/use-toast';
@@ -52,6 +54,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
@@ -83,11 +86,13 @@ import {
 } from '@/firebase';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { cn } from '@/lib/utils';
+import { Badge } from './ui/badge';
 
 interface LibImageRecord {
   id: string;
   userId: string;
   libImgName: string;
+  libImgCategory?: string;
   libImg: string;
   libImgDesc?: string;
   libImgStoragePath: string;
@@ -118,9 +123,9 @@ const ImageGridItem = ({ record, onOpenDialog }: { record: LibImageRecord, onOpe
         <div className="p-3 flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm truncate" title={record.libImgName}>{record.libImgName}</p>
-                <p className="text-xs text-muted-foreground truncate" title={record.libImgDesc}>
-                    {record.libImgDesc || 'No description'}
-                </p>
+                <div className="flex items-center gap-1.5 mt-1">
+                  {record.libImgCategory && <Badge variant="secondary" className='truncate'>{record.libImgCategory}</Badge>}
+                </div>
             </div>
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -151,6 +156,9 @@ const ImageListItem = ({ record, onOpenDialog }: { record: LibImageRecord, onOpe
                 <p className="truncate text-sm font-medium">{record.libImgName}</p>
                 <p className="truncate text-xs text-muted-foreground">{record.libImgDesc || 'No description'}</p>
             </div>
+        </div>
+         <div className="hidden md:block w-40">
+            {record.libImgCategory && <Badge variant="outline">{record.libImgCategory}</Badge>}
         </div>
         <div className="hidden sm:block text-sm text-muted-foreground w-48">
           {record.timestamp ? format(record.timestamp.toDate(), "MMM dd, yyyy") : ''}
@@ -186,9 +194,11 @@ export default function ImgLibProcessor() {
 
   const [dialogState, setDialogState] = useState<DialogState>(null);
   const [view, setView] = useState<ViewMode>('small');
+  const [filterCategory, setFilterCategory] = useState<string | null>(null);
 
   const [imageName, setImageName] = useState('');
   const [imageDesc, setImageDesc] = useState('');
+  const [imageCategory, setImageCategory] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
 
   const [isLoadingAction, setIsLoadingAction] = useState(false);
@@ -197,19 +207,31 @@ export default function ImgLibProcessor() {
   
   const libQuery = useMemoFirebase(() => {
     if (!user) return null;
-    return query(collection(firestore, `users/${user.uid}/avatarImgLib`), orderBy('timestamp', 'desc'));
-  }, [firestore, user]);
+    const baseCollection = collection(firestore, `users/${user.uid}/avatarImgLib`);
+    if(filterCategory) {
+        return query(baseCollection, where('libImgCategory', '==', filterCategory), orderBy('timestamp', 'desc'));
+    }
+    return query(baseCollection, orderBy('timestamp', 'desc'));
+  }, [firestore, user, filterCategory]);
 
   const { data: libImages, isLoading: libImagesLoading } = useCollection<LibImageRecord>(libQuery);
+
+  const allCategories = useMemo(() => {
+    if (!libImages) return [];
+    const categories = libImages.map(img => img.libImgCategory).filter(Boolean) as string[];
+    return [...new Set(categories)];
+  }, [libImages]);
 
   const openDialog = (state: DialogState) => {
     if (state?.type === 'edit') {
         setImageName(state.record.libImgName);
         setImageDesc(state.record.libImgDesc || '');
+        setImageCategory(state.record.libImgCategory || '');
         setImageFile(null);
     } else {
         setImageName('');
         setImageDesc('');
+        setImageCategory('');
         setImageFile(null);
     }
     setDialogState(state);
@@ -293,6 +315,7 @@ export default function ImgLibProcessor() {
           userId: user.uid,
           libImgName: imageName,
           libImgDesc: imageDesc,
+          libImgCategory: imageCategory,
           libImg: downloadURL,
           libImgStoragePath: storagePath,
           timestamp: serverTimestamp(),
@@ -305,6 +328,7 @@ export default function ImgLibProcessor() {
         const updatedData: Partial<LibImageRecord> = {
           libImgName: imageName,
           libImgDesc: imageDesc,
+          libImgCategory: imageCategory,
         };
   
         if (downloadURL && storagePath) {
@@ -381,13 +405,33 @@ export default function ImgLibProcessor() {
       <Card>
       <CardHeader>
         <CardTitle>Image Library</CardTitle>
-        <CardDescription>Manage your saved images.</CardDescription>
+        <CardDescription>Manage your saved images. Organize them with categories and find them easily.</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
             <div className="flex justify-between items-center">
                 <div>
-                     {/* Search/filters can be added here */}
+                  <DropdownMenu>
+                      <Tooltip>
+                          <TooltipTrigger asChild>
+                              <DropdownMenuTrigger asChild>
+                                  <Button variant="outline">
+                                      <Filter className='mr-2 h-4 w-4' />
+                                      {filterCategory || 'All Categories'}
+                                  </Button>
+                              </DropdownMenuTrigger>
+                          </TooltipTrigger>
+                          <TooltipContent><p>Filter by category</p></TooltipContent>
+                      </Tooltip>
+                      <DropdownMenuContent>
+                          <DropdownMenuLabel>Category</DropdownMenuLabel>
+                          <DropdownMenuRadioGroup value={filterCategory || ''} onValueChange={(v) => setFilterCategory(v === '' ? null : v)}>
+                              <DropdownMenuRadioItem value="">All Categories</DropdownMenuRadioItem>
+                              <DropdownMenuSeparator/>
+                              {allCategories.map(cat => <DropdownMenuRadioItem key={cat} value={cat}>{cat}</DropdownMenuRadioItem>)}
+                          </DropdownMenuRadioGroup>
+                      </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
                 <div className='flex gap-2'>
                     <DropdownMenu>
@@ -447,6 +491,7 @@ export default function ImgLibProcessor() {
                     <div className="flex flex-col items-center justify-center h-64 rounded-md border border-dashed text-sm text-muted-foreground">
                         <ImageIcon className="h-10 w-10 mb-2" />
                         <p>Your image library is empty.</p>
+                         {filterCategory && <p className='text-xs mt-1'>Try selecting 'All Categories'.</p>}
                     </div>
                 )
             )}
@@ -462,6 +507,10 @@ export default function ImgLibProcessor() {
                     <div className="space-y-2">
                         <Label htmlFor="imageName">Image Name</Label>
                         <Input id="imageName" value={imageName} onChange={e => setImageName(e.target.value)} disabled={isLoadingAction} />
+                    </div>
+                     <div className="space-y-2">
+                        <Label htmlFor="imageCategory">Category</Label>
+                        <Input id="imageCategory" value={imageCategory} onChange={e => setImageCategory(e.target.value)} placeholder="e.g. Portraits, Landscapes (optional)" disabled={isLoadingAction} />
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="imageDesc">Description</Label>
@@ -507,5 +556,6 @@ export default function ImgLibProcessor() {
     </TooltipProvider>
   );
 }
+
 
     

@@ -312,71 +312,93 @@ export default function AvatarsProcessor() {
   };
 
   const handleSubmit = async () => {
-     if (!user || !dialogState || !avatarName.trim()) {
-        toast({ variant: "destructive", title: "Missing Information", description: "Avatar name is required." });
-        return;
-     }
-     
-     if (dialogState.type === 'create' && !avatarFile && !generatedAvatarUrl) {
-         toast({ variant: "destructive", title: "Missing Information", description: "An image is required for creation." });
-         return;
-     }
-
-     setIsLoadingAction(true);
-     
-     try {
-        if (dialogState.type === 'create') {
-            const fileToUpload = generatedAvatarUrl ? generatedAvatarUrl : avatarFile!;
-            const fileName = generatedAvatarUrl ? `${avatarPrompt.substring(0, 20) || 'avatar'}.png` : avatarFile!.name;
-            
-            const { downloadURL, storagePath } = await uploadImage(fileToUpload, user.uid, fileName);
-            
-            const avatarData = {
+    if (!user || !dialogState || !avatarName.trim()) {
+      toast({ variant: "destructive", title: "Missing Information", description: "Avatar name is required." });
+      return;
+    }
+  
+    if (dialogState.type === 'create' && !avatarFile && !generatedAvatarUrl) {
+      toast({ variant: "destructive", title: "Missing Information", description: "An image is required for creation." });
+      return;
+    }
+  
+    setIsLoadingAction(true);
+  
+    try {
+      if (dialogState.type === 'create') {
+        const fileToUpload = generatedAvatarUrl ? generatedAvatarUrl : avatarFile!;
+        const fileName = generatedAvatarUrl ? `${avatarPrompt.substring(0, 20) || 'avatar'}.png` : avatarFile!.name;
+  
+        const { downloadURL, storagePath } = await uploadImage(fileToUpload, user.uid, fileName);
+  
+        const avatarData = {
+          userId: user.uid,
+          avatarName,
+          avatarDesc,
+          avatarPrompt,
+          avatarImg: downloadURL,
+          avatarStoragePath: storagePath,
+          timestamp: serverTimestamp(),
+        };
+        await addDoc(collection(firestore, `users/${user.uid}/avatarRecords`), avatarData);
+        toast({ title: 'Success', description: 'Avatar created.' });
+  
+        if (generatedAvatarUrl) {
+            const libImgData = {
                 userId: user.uid,
-                avatarName,
-                avatarDesc,
-                avatarPrompt,
-                avatarImg: downloadURL,
-                avatarStoragePath: storagePath,
+                libImgName: avatarName,
+                libImg: downloadURL,
+                libImgDesc: avatarDesc,
                 timestamp: serverTimestamp(),
             };
-            await addDoc(collection(firestore, `users/${user.uid}/avatarRecords`), avatarData);
-            toast({ title: 'Success', description: 'Avatar created.' });
-
-        } else if (dialogState.type === 'edit') {
-            const docRef = doc(firestore, `users/${user.uid}/avatarRecords`, dialogState.record.id);
-            const updatedData: Partial<AvatarRecord> = {
-                avatarName,
-                avatarDesc,
-                avatarPrompt,
-            };
-
-            if (avatarFile || generatedAvatarUrl) {
-                const fileToUpload = generatedAvatarUrl ? generatedAvatarUrl : avatarFile!;
-                const fileName = generatedAvatarUrl ? `${avatarPrompt.substring(0, 20) || 'avatar'}.png` : avatarFile!.name;
-                
-                const { downloadURL, storagePath } = await uploadImage(fileToUpload, user.uid, fileName);
-                updatedData.avatarImg = downloadURL;
-                updatedData.avatarStoragePath = storagePath;
-
-                // Delete old image
-                if (dialogState.record.avatarStoragePath) {
-                    const oldImageRef = storageRef(storage, dialogState.record.avatarStoragePath);
-                    await deleteObject(oldImageRef).catch(err => console.warn("Could not delete old image:", err));
-                }
-            }
-            
-            await updateDoc(docRef, updatedData);
-            toast({ title: 'Success', description: 'Avatar updated.' });
+            await addDoc(collection(firestore, `users/${user.uid}/avatarImgLib`), libImgData);
         }
-        closeDialog();
-     } catch (error) {
-        console.error("Avatar action failed:", error);
-        toast({ variant: 'destructive', title: 'Error', description: 'Could not save avatar.' });
-     } finally {
-        setIsLoadingAction(false);
-        setUploadProgress(null);
-     }
+  
+      } else if (dialogState.type === 'edit') {
+        const docRef = doc(firestore, `users/${user.uid}/avatarRecords`, dialogState.record.id);
+        const updatedData: Partial<AvatarRecord> = {
+          avatarName,
+          avatarDesc,
+          avatarPrompt,
+        };
+  
+        if (avatarFile || generatedAvatarUrl) {
+          const fileToUpload = generatedAvatarUrl ? generatedAvatarUrl : avatarFile!;
+          const fileName = generatedAvatarUrl ? `${avatarPrompt.substring(0, 20) || 'avatar'}.png` : avatarFile!.name;
+  
+          const { downloadURL, storagePath } = await uploadImage(fileToUpload, user.uid, fileName);
+          updatedData.avatarImg = downloadURL;
+          updatedData.avatarStoragePath = storagePath;
+  
+          if (generatedAvatarUrl) {
+            const libImgData = {
+                userId: user.uid,
+                libImgName: avatarName,
+                libImg: downloadURL,
+                libImgDesc: avatarDesc,
+                timestamp: serverTimestamp(),
+            };
+            await addDoc(collection(firestore, `users/${user.uid}/avatarImgLib`), libImgData);
+          }
+
+          // Delete old image
+          if (dialogState.record.avatarStoragePath) {
+            const oldImageRef = storageRef(storage, dialogState.record.avatarStoragePath);
+            await deleteObject(oldImageRef).catch(err => console.warn("Could not delete old image:", err));
+          }
+        }
+  
+        await updateDoc(docRef, updatedData);
+        toast({ title: 'Success', description: 'Avatar updated.' });
+      }
+      closeDialog();
+    } catch (error) {
+      console.error("Avatar action failed:", error);
+      toast({ variant: 'destructive', title: 'Error', description: 'Could not save avatar.' });
+    } finally {
+      setIsLoadingAction(false);
+      setUploadProgress(null);
+    }
   };
 
   const handleDelete = async () => {

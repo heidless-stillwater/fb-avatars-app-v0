@@ -97,6 +97,8 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { cn } from '@/lib/utils';
 import { Badge } from './ui/badge';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
+import { ChevronsUpDown } from 'lucide-react';
 
 interface LibImageRecord {
   id: string;
@@ -783,6 +785,3 @@ export default function ImgLibProcessor() {
     </TooltipProvider>
   );
 }
-
-    
-    

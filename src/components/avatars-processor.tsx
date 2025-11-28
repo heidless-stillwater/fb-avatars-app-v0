@@ -260,25 +260,28 @@ export default function AvatarsProcessor() {
         uploadTask = uploadBytesResumable(fileStorageRef, file);
     }
 
+    setUploadProgress(0);
+
     const downloadURL = await new Promise<string>((resolve, reject) => {
-        if(typeof file !== 'string') {
-             (uploadTask as any).on('state_changed',
-                (snapshot: any) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
-                reject,
-                async () => {
-                    const url = await getDownloadURL((uploadTask as any).snapshot.ref);
-                    resolve(url);
-                }
-            );
-        } else {
-            uploadTask.then(async (snapshot) => {
-                const url = await getDownloadURL(snapshot.ref);
+        const task = (typeof file === 'string') ? uploadTask : uploadBytesResumable(fileStorageRef, file);
+        
+        task.on('state_changed',
+            (snapshot) => {
+                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                setUploadProgress(progress);
+            },
+            reject,
+            async () => {
+                const url = await getDownloadURL(task.snapshot.ref);
                 resolve(url);
-            }).catch(reject);
-        }
+            }
+        );
     });
+
+    setUploadProgress(null);
     return { downloadURL, storagePath };
   };
+
 
   const handleGenWithAI = async () => {
     if (!avatarPrompt) {
@@ -305,17 +308,24 @@ export default function AvatarsProcessor() {
   };
 
   const handleSubmit = async () => {
-     if (!user || !dialogState || !avatarName.trim() || (dialogState.type === 'create' && !avatarFile) ) {
-        toast({ variant: "destructive", title: "Missing Information", description: "Avatar name is required. An image is required for creation." });
+     if (!user || !dialogState || !avatarName.trim()) {
+        toast({ variant: "destructive", title: "Missing Information", description: "Avatar name is required." });
         return;
+     }
+     
+     if (dialogState.type === 'create' && !avatarFile && !generatedAvatarUrl) {
+         toast({ variant: "destructive", title: "Missing Information", description: "An image is required for creation." });
+         return;
      }
 
      setIsLoadingAction(true);
      
      try {
         if (dialogState.type === 'create') {
-            if(!avatarFile) throw new Error("No avatar file provided for creation.");
-            const { downloadURL, storagePath } = await uploadImage(avatarFile, user.uid, avatarFile.name);
+            const fileToUpload = generatedAvatarUrl ? generatedAvatarUrl : avatarFile!;
+            const fileName = generatedAvatarUrl ? `${avatarPrompt.substring(0, 20) || 'avatar'}.png` : avatarFile!.name;
+            
+            const { downloadURL, storagePath } = await uploadImage(fileToUpload, user.uid, fileName);
             
             const avatarData = {
                 userId: user.uid,
@@ -339,7 +349,7 @@ export default function AvatarsProcessor() {
 
             if (avatarFile || generatedAvatarUrl) {
                 const fileToUpload = generatedAvatarUrl ? generatedAvatarUrl : avatarFile!;
-                const fileName = generatedAvatarUrl ? `${avatarPrompt.substring(0, 20)}.png` : avatarFile!.name;
+                const fileName = generatedAvatarUrl ? `${avatarPrompt.substring(0, 20) || 'avatar'}.png` : avatarFile!.name;
                 
                 const { downloadURL, storagePath } = await uploadImage(fileToUpload, user.uid, fileName);
                 updatedData.avatarImg = downloadURL;
@@ -535,7 +545,7 @@ export default function AvatarsProcessor() {
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={closeDialog} disabled={isLoadingAction}>Cancel</Button>
-                    <Button onClick={handleSubmit} disabled={isLoadingAction || !avatarName.trim() || (dialogState?.type === 'create' && !avatarFile && !generatedAvatarUrl) || (dialogState?.type === 'edit' && !avatarName.trim()) || isGeneratingAI}>
+                    <Button onClick={handleSubmit} disabled={isLoadingAction || !avatarName.trim() || (dialogState?.type === 'create' && !avatarFile && !generatedAvatarUrl) || isGeneratingAI}>
                         {isLoadingAction ? <Loader2 className="animate-spin" /> : 'Save'}
                     </Button>
                 </DialogFooter>

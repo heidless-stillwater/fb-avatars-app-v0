@@ -304,6 +304,8 @@ export default function AvatarsProcessor() {
             await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate AI delay
             if (dialogState?.type === 'edit') {
               setGeneratedAvatarUrl(dialogState.record.avatarImg);
+            } else {
+              setGeneratedAvatarUrl("https://picsum.photos/seed/test/512/512");
             }
             toast({ title: 'Success (Test Run)', description: 'Simulated AI image generation.' });
         } else {
@@ -334,9 +336,12 @@ export default function AvatarsProcessor() {
     setIsLoadingAction(true);
   
     try {
+      let wasAIGenerated = false;
+
       if (dialogState.type === 'create') {
         const fileToUpload = generatedAvatarUrl ? generatedAvatarUrl : avatarFile!;
-        const fileName = generatedAvatarUrl ? `${effectivePrompt.substring(0, 20) || 'avatar'}.png` : avatarFile!.name;
+        wasAIGenerated = !!generatedAvatarUrl;
+        const fileName = wasAIGenerated ? `${effectivePrompt.substring(0, 20) || 'avatar'}.png` : avatarFile!.name;
   
         const { downloadURL, storagePath } = await uploadImage(fileToUpload, user.uid, fileName);
   
@@ -352,7 +357,7 @@ export default function AvatarsProcessor() {
         await addDoc(collection(firestore, `users/${user.uid}/avatarRecords`), avatarData);
         toast({ title: 'Success', description: 'Avatar created.' });
   
-        if (generatedAvatarUrl) {
+        if (wasAIGenerated) {
             const libImgData = {
                 userId: user.uid,
                 libImgName: avatarName,
@@ -374,13 +379,14 @@ export default function AvatarsProcessor() {
   
         if (avatarFile || generatedAvatarUrl) {
           const fileToUpload = generatedAvatarUrl ? generatedAvatarUrl : avatarFile!;
-          const fileName = generatedAvatarUrl ? `${effectivePrompt.substring(0, 20) || 'avatar'}.png` : avatarFile!.name;
+          wasAIGenerated = !!generatedAvatarUrl;
+          const fileName = wasAIGenerated ? `${effectivePrompt.substring(0, 20) || 'avatar'}.png` : avatarFile!.name;
   
           const { downloadURL, storagePath } = await uploadImage(fileToUpload, user.uid, fileName);
           updatedData.avatarImg = downloadURL;
           updatedData.avatarStoragePath = storagePath;
   
-          if (generatedAvatarUrl) {
+          if (wasAIGenerated) {
             const libImgData = {
                 userId: user.uid,
                 libImgName: avatarName,
@@ -393,7 +399,7 @@ export default function AvatarsProcessor() {
           }
 
           // Delete old image only if a new one was uploaded/generated
-          if (dialogState.record.avatarStoragePath && (avatarFile || generatedAvatarUrl)) {
+          if (dialogState.record.avatarStoragePath) {
             const oldImageRef = storageRef(storage, dialogState.record.avatarStoragePath);
             await deleteObject(oldImageRef).catch(err => console.warn("Could not delete old image:", err));
           }
@@ -609,3 +615,5 @@ export default function AvatarsProcessor() {
     </TooltipProvider>
   );
 }
+
+    

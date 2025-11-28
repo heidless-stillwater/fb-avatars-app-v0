@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useRef, ChangeEvent } from 'react';
+import React, { useState, useMemo, useRef, ChangeEvent, useEffect } from 'react';
 import Image from 'next/image';
 import {
   collection,
@@ -212,6 +212,10 @@ export default function AvatarsProcessor() {
 
   const { data: avatars, isLoading: avatarsLoading } = useCollection<AvatarRecord>(avatarsQuery);
 
+  const effectivePrompt = useMemo(() => {
+    return avatarPrompt.trim() === '' ? avatarName : avatarPrompt;
+  }, [avatarPrompt, avatarName]);
+
   const openDialog = (state: DialogState) => {
     if (state?.type === 'edit') {
         setAvatarName(state.record.avatarName);
@@ -267,7 +271,7 @@ export default function AvatarsProcessor() {
         // Handle File upload (with progress tracking)
         const uploadTask: UploadTask = uploadBytesResumable(fileStorageRef, file);
 
-        const downloadURL = await new Promise<string>((resolve, reject) => {
+        return new Promise((resolve, reject) => {
             uploadTask.on('state_changed',
                 (snapshot) => {
                     const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
@@ -275,30 +279,35 @@ export default function AvatarsProcessor() {
                 },
                 reject, // on error
                 async () => { // on success
-                    const url = await getDownloadURL(uploadTask.snapshot.ref);
-                    resolve(url);
+                    try {
+                        const url = await getDownloadURL(uploadTask.snapshot.ref);
+                        setUploadProgress(null);
+                        resolve({ downloadURL: url, storagePath });
+                    } catch (e) {
+                        reject(e);
+                    }
                 }
             );
         });
-
-        setUploadProgress(null);
-        return { downloadURL, storagePath };
     }
   };
 
 
   const handleGenWithAI = async () => {
-    if (!avatarPrompt) {
-        toast({ variant: 'destructive', title: 'Prompt is empty', description: 'Please enter a prompt to generate an image.'});
+    if (!effectivePrompt) {
+        toast({ variant: 'destructive', title: 'Prompt is empty', description: 'Please enter a prompt or name to generate an image.'});
         return;
     }
     setIsGeneratingAI(true);
     try {
         if (testRun) {
             await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate AI delay
+            if (dialogState?.type === 'edit') {
+              setGeneratedAvatarUrl(dialogState.record.avatarImg);
+            }
             toast({ title: 'Success (Test Run)', description: 'Simulated AI image generation.' });
         } else {
-            const result = await generateAvatar({ prompt: avatarPrompt });
+            const result = await generateAvatar({ prompt: effectivePrompt });
             setGeneratedAvatarUrl(result.avatarImageUrl);
             setAvatarFile(null);
             toast({ title: 'Success', description: 'New avatar image generated.' });
@@ -327,7 +336,7 @@ export default function AvatarsProcessor() {
     try {
       if (dialogState.type === 'create') {
         const fileToUpload = generatedAvatarUrl ? generatedAvatarUrl : avatarFile!;
-        const fileName = generatedAvatarUrl ? `${avatarPrompt.substring(0, 20) || 'avatar'}.png` : avatarFile!.name;
+        const fileName = generatedAvatarUrl ? `${effectivePrompt.substring(0, 20) || 'avatar'}.png` : avatarFile!.name;
   
         const { downloadURL, storagePath } = await uploadImage(fileToUpload, user.uid, fileName);
   
@@ -362,15 +371,17 @@ export default function AvatarsProcessor() {
           avatarPrompt,
         };
   
+        let newImageGenerated = false;
         if (avatarFile || generatedAvatarUrl) {
           const fileToUpload = generatedAvatarUrl ? generatedAvatarUrl : avatarFile!;
-          const fileName = generatedAvatarUrl ? `${avatarPrompt.substring(0, 20) || 'avatar'}.png` : avatarFile!.name;
+          const fileName = generatedAvatarUrl ? `${effectivePrompt.substring(0, 20) || 'avatar'}.png` : avatarFile!.name;
   
           const { downloadURL, storagePath } = await uploadImage(fileToUpload, user.uid, fileName);
           updatedData.avatarImg = downloadURL;
           updatedData.avatarStoragePath = storagePath;
   
           if (generatedAvatarUrl) {
+            newImageGenerated = true;
             const libImgData = {
                 userId: user.uid,
                 libImgName: avatarName,
@@ -381,8 +392,8 @@ export default function AvatarsProcessor() {
             await addDoc(collection(firestore, `users/${user.uid}/avatarImgLib`), libImgData);
           }
 
-          // Delete old image
-          if (dialogState.record.avatarStoragePath) {
+          // Delete old image only if a new one was uploaded/generated
+          if (dialogState.record.avatarStoragePath && (avatarFile || generatedAvatarUrl)) {
             const oldImageRef = storageRef(storage, dialogState.record.avatarStoragePath);
             await deleteObject(oldImageRef).catch(err => console.warn("Could not delete old image:", err));
           }
@@ -536,7 +547,7 @@ export default function AvatarsProcessor() {
 
                         {generateWithAI ? (
                             <div className="space-y-2">
-                               <Button id="gen-but" onClick={handleGenWithAI} disabled={isGeneratingAI || isLoadingAction || !avatarPrompt.trim()} className="w-full">
+                               <Button id="gen-but" onClick={handleGenWithAI} disabled={isGeneratingAI || isLoadingAction || !effectivePrompt.trim()} className="w-full">
                                     {isGeneratingAI ? <Loader2 className="animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
                                     Gen with AI
                                 </Button>

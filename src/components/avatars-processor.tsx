@@ -37,6 +37,7 @@ import {
   Wand2,
   Save,
   LayoutGrid,
+  Library,
 } from 'lucide-react';
 
 import { useToast } from '@/hooks/use-toast';
@@ -72,6 +73,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -97,6 +100,12 @@ interface AvatarRecord {
   avatarImg: string;
   avatarStoragePath: string;
   timestamp: Timestamp;
+}
+
+interface LibImageRecord {
+    id: string;
+    libImgName: string;
+    libImg: string;
 }
 
 type DialogState =
@@ -207,6 +216,7 @@ export default function AvatarsProcessor() {
   const [generatedAvatarUrl, setGeneratedAvatarUrl] = useState<string | null>(null);
   const [generateWithAI, setGenerateWithAI] = useState(false);
   const [testRun, setTestRun] = useState(false);
+  const [libraryPopoverOpen, setLibraryPopoverOpen] = useState(false);
 
   const [isLoadingAction, setIsLoadingAction] = useState(false);
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
@@ -220,6 +230,14 @@ export default function AvatarsProcessor() {
   }, [firestore, user]);
 
   const { data: avatars, isLoading: avatarsLoading } = useCollection<AvatarRecord>(avatarsQuery);
+
+  const libQuery = useMemoFirebase(() => {
+    if (!user) return null;
+    return query(collection(firestore, `users/${user.uid}/avatarImgLib`), orderBy('timestamp', 'desc'));
+  }, [firestore, user]);
+
+  const { data: libImages, isLoading: libImagesLoading } = useCollection<LibImageRecord>(libQuery);
+
 
   const effectivePrompt = useMemo(() => {
     return avatarPrompt.trim() === '' ? avatarName : avatarPrompt;
@@ -252,6 +270,12 @@ export default function AvatarsProcessor() {
 
   const closeDialog = () => {
     setDialogState(null);
+  };
+
+  const handleSelectFromLibrary = (imageUrl: string) => {
+    setGeneratedAvatarUrl(imageUrl); // Use generatedAvatarUrl to hold the selected library image URL
+    setAvatarFile(null); // Clear any uploaded file
+    setLibraryPopoverOpen(false);
   };
   
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -429,7 +453,7 @@ export default function AvatarsProcessor() {
     setIsLoadingAction(true);
   
     try {
-      const wasAIGenerated = !!generatedAvatarUrl;
+      const wasAIGenerated = !!generatedAvatarUrl && !avatarFile;
       let downloadURL: string | null = null;
       let storagePath: string | null = null;
 
@@ -668,10 +692,38 @@ export default function AvatarsProcessor() {
 
                         {!generateWithAI && (
                              <div className="space-y-2">
-                                <Label htmlFor="avatarFile">
+                                <Label>
                                     {dialogState?.type === 'create' ? 'Image' : 'Replace Image (Optional)'}
                                 </Label>
-                                <Input id="avatarFile" type="file" accept="image/*" ref={fileInputRef} onChange={handleFileChange} disabled={isLoadingAction} />
+                                <div className='flex gap-2'>
+                                    <Input id="avatarFile" type="file" accept="image/*" ref={fileInputRef} onChange={handleFileChange} disabled={isLoadingAction} className='flex-1' />
+                                    <Popover open={libraryPopoverOpen} onOpenChange={setLibraryPopoverOpen}>
+                                        <PopoverTrigger asChild>
+                                            <Button variant="outline" size="icon" disabled={isLoadingAction}>
+                                                <Library className="h-4 w-4" />
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-80 p-0">
+                                            <div className="p-2 border-b">
+                                                <h4 className="font-medium text-sm">Select from Library</h4>
+                                            </div>
+                                            <ScrollArea className="h-72">
+                                                <div className="p-2 grid grid-cols-4 gap-2">
+                                                    {libImagesLoading && <Loader2 className='animate-spin'/>}
+                                                    {libImages && libImages.map(img => (
+                                                        <button 
+                                                            key={img.id}
+                                                            className='relative aspect-square rounded-md overflow-hidden hover:ring-2 ring-primary'
+                                                            onClick={() => handleSelectFromLibrary(img.libImg)}
+                                                        >
+                                                            <Image src={img.libImg} alt={img.libImgName} fill className='object-cover'/>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </ScrollArea>
+                                        </PopoverContent>
+                                    </Popover>
+                                </div>
                              </div>
                         )}
                         {avatarFile && !generateWithAI && <p className="text-sm text-muted-foreground">New image: {avatarFile.name}</p>}

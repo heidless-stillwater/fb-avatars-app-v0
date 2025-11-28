@@ -321,6 +321,31 @@
         "libImgStoragePath",
         "timestamp"
       ]
+    },
+    "Category": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Category",
+      "type": "object",
+      "description": "Represents a category for organizing images in the Avatar Image Library.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the category, typically the category name itself."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User who owns this category."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the category."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "name"
+      ]
     }
   },
   "auth": {
@@ -444,26 +469,46 @@
               "description": "The unique identifier for the avatar record."
             }
           ]
-        },
-        {
-          "path": "/users/{userId}/avatarImgLib/{imgLibId}",
-          "definition": {
-            "entityName": "AvatarImgLib",
-            "schema": {
-              "$ref": "#/backend/entities/AvatarImgLib"
+        }
+      },
+      {
+        "path": "/users/{userId}/avatarImgLib/{imgLibId}",
+        "definition": {
+          "entityName": "AvatarImgLib",
+          "schema": {
+            "$ref": "#/backend/entities/AvatarImgLib"
+          },
+          "description": "Stores avatar image library records for each user. Path-based ownership ensures only the authenticated user can manage their image library.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user, obtained from Firebase Authentication."
             },
-            "description": "Stores avatar image library records for each user. Path-based ownership ensures only the authenticated user can manage their image library.",
-            "params": [
-              {
-                "name": "userId",
-                "description": "The unique identifier for the user, obtained from Firebase Authentication."
-              },
-              {
-                "name": "imgLibId",
-                "description": "The unique identifier for the image library record."
-              }
-            ]
-          }
+            {
+              "name": "imgLibId",
+              "description": "The unique identifier for the image library record."
+            }
+          ]
+        }
+      },
+       {
+        "path": "/users/{userId}/categories/{categoryId}",
+        "definition": {
+          "entityName": "Category",
+          "schema": {
+            "$ref": "#/backend/entities/Category"
+          },
+          "description": "Stores user-defined categories for the image library. Path-based ownership ensures only the authenticated user can manage their categories.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user, obtained from Firebase Authentication."
+            },
+            {
+              "name": "categoryId",
+              "description": "The unique identifier for the category, which is the category name itself."
+            }
+          ]
         }
       },
       {
@@ -483,8 +528,7 @@
         }
       }
     ],
-    "reasoning": "The Firestore structure is designed to ensure secure and scalable file management, following the principles of Authorization Independence, Clarity of Intent, DBAC, and QAPs. User data is stored in `/users/{userId}`.  File metadata and folders are organized under the user's document using hierarchical paths (`/users/{userId}/files/{fileId}` and `/users/{userId}/folders/{folderId}`) to represent ownership, with files stored as metadata only. This design prioritizes path-based ownership and avoids the need for complex security rules involving `get()` calls. File metadata is stored independently of the actual file content (which would be stored in Firebase Storage). This ensures that file metadata operations (listing, renaming, deleting) are fast and efficient. File and folder IDs will be generated client-side using a UUID generator. The structure supports secure list operations (QAPs) by ensuring that each collection has homogeneous security needs and uses path-based ownership, eliminating the need for filtering in rules. Folder structures are self-referential, but still isolated to the user's document space. The new Todo and NanoRecord collections follow the same pattern of user ownership. The `fb-7-messages` collection is a top-level collection to store public contact form submissions."
+    "reasoning": "The Firestore structure is designed to ensure secure and scalable file management, following the principles of Authorization Independence, Clarity of Intent, DBAC, and QAPs. User data is stored in `/users/{userId}`.  File metadata and folders are organized under the user's document using hierarchical paths (`/users/{userId}/files/{fileId}` and `/users/{userId}/folders/{folderId}`) to represent ownership, with files stored as metadata only. This design prioritizes path-based ownership and avoids the need for complex security rules involving `get()` calls. File metadata is stored independently of the actual file content (which would be in Firebase Storage). This ensures that file metadata operations are fast and efficient. The structure supports secure list operations (QAPs) by ensuring that each collection has homogeneous security needs and uses path-based ownership. The new Todo, NanoRecord, Avatar, Image Library, and Category collections follow the same pattern of user ownership. The `fb-7-messages` collection is a top-level collection to store public contact form submissions."
   }
 }
-
     

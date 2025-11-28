@@ -1,0 +1,230 @@
+/**
+ * @file Firebase Security Rules for File Management App
+ * @description This ruleset enforces a strict user-ownership model for all data. Each user has exclusive access to their profile, files, and folders.
+ *
+ * Data Structure:
+ * - /users/{userId}: Stores user profile information.
+ * - /users/{userId}/files/{fileId}: Stores metadata for files uploaded by the user.
+ * - /users/{userId}/folders/{folderId}: Stores folder information.
+ * - /users/{userId}/todos/{todoId}: Stores todo items for the user.
+ * - /users/{userId}/nanoRecords/{recordId}: Stores image transformation records.
+ * - /users/{userId}/avatarRecords/{avatarRecordId}: Stores avatar records for the user.
+ * - /users/{userId}/avatarImgLib/{imgLibId}: Stores avatar image library records for the user.
+ * - /users/{userId}/categories/{categoryId}: Stores user-defined categories.
+ * - /fb-7-messages/{messageId}: Stores messages from the contact form.
+ *
+ * Key Security Decisions:
+ * - Users can only access their own data.
+ * - No listing of all users is allowed.
+ * - Data schema is not strictly validated in this prototype to allow for rapid iteration. However, critical authorization fields (like userId) are validated on creation and updates.
+ *
+ * Denormalization for Authorization:
+ * - The 'userId' field is included within the FileMetadata and Folder documents. This is CRITICAL for security. Without it, it would be impossible to write rules that efficiently restrict access to the owner of the data.
+ *
+ * Structural Segregation:
+ * - User profiles, files, and folders are all stored under the /users/{userId} path. This ensures that each user's data is completely isolated from other users.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * @description Controls access to user profiles. Only the authenticated user can read or write their own profile.
+     * @path /users/{userId}
+     * @allow (create) - User with UID 'user_abc' can create their profile if request.auth.uid == 'user_abc' and request.resource.data.id == 'user_abc'.
+     * @allow (get, update, delete) - User with UID 'user_abc' can get, update, and delete their profile, no other user can.
+     * @deny (create) - User with UID 'user_def' cannot create a profile with ID 'user_abc'.
+     * @deny (list) - No one can list all users.
+     * @deny (update) - User with UID 'user_def' cannot update the profile of user 'user_abc'.
+     * @deny (delete) - User with UID 'user_def' cannot delete the profile of user 'user_abc'.
+     * @principle Enforces document ownership and prevents unauthorized profile access. Validates userId on create and update.
+     */
+    match /users/{userId} {
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if false;
+
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Controls access to file metadata for files uploaded by the user. Only the authenticated user can manage their own files.
+     * @path /users/{userId}/files/{fileId}
+     * @allow (create) - User with UID 'user_abc' can create file metadata under their user ID.
+     * @allow (get, update, delete) - User with UID 'user_abc' can get, update, and delete file metadata under their user ID.
+     * @deny (create) - User with UID 'user_def' cannot create file metadata under user 'user_abc'.
+     * @deny (list) - Only the owning user can list their files. Other users cannot.
+     * @deny (update) - User with UID 'user_def' cannot update file metadata under user 'user_abc'.
+     * @deny (delete) - User with UID 'user_def' cannot delete file metadata under user 'user_abc'.
+     * @principle Enforces document ownership for file metadata and prevents unauthorized access. Validates userId on create and update.
+     */
+    match /users/{userId}/files/{fileId} {
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Controls access to folders. Only the authenticated user can manage their own folders.
+     * @path /users/{userId}/folders/{folderId}
+     * @allow (create) - User with UID 'user_abc' can create a folder under their user ID.
+     * @allow (get, update, delete) - User with UID 'user_abc' can get, update, and delete folders under their user ID.
+     * @deny (create) - User with UID 'user_def' cannot create a folder under user 'user_abc'.
+     * @deny (list) - Only the owning user can list their folders. Other users cannot.
+     * @deny (update) - User with UID 'user_def' cannot update a folder under user 'user_abc'.
+     * @deny (delete) - User with UID 'user_def' cannot delete a folder under user 'user_abc'.
+     * @principle Enforces document ownership for folders and prevents unauthorized access. Validates userId on create and update.
+     */
+    match /users/{userId}/folders/{folderId} {
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isExistingOwner(userId);
+    }
+    
+    /**
+     * @description Controls access to todos. Only the authenticated user can manage their own todos.
+     * @path /users/{userId}/todos/{todoId}
+     * @principle Enforces document ownership for todos and prevents unauthorized access. Validates userId on create and update.
+     */
+    match /users/{userId}/todos/{todoId} {
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+      
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isExistingOwner(userId);
+    }
+    
+    /**
+     * @description Controls access to nanoRecords. Allows authenticated users to create and delete records, but only read their own. Records are immutable upon creation.
+     * @path /users/{userId}/nanoRecords/{recordId}
+     * @principle Enforces ownership for reads and deletes based on path, allows create for any authenticated user if they set the userId correctly.
+     */
+    match /users/{userId}/nanoRecords/{recordId} {
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow read, list: if isOwner(userId);
+      allow delete: if isExistingOwner(userId);
+
+      // Updates are not allowed, making records immutable after creation.
+      allow update: if false;
+    }
+
+    /**
+     * @description Controls access to avatarRecords. Only the authenticated user can manage their own avatar records.
+     * @path /users/{userId}/avatarRecords/{avatarRecordId}
+     * @principle Enforces document ownership for avatar records and prevents unauthorized access. Validates userId on create and update.
+     */
+    match /users/{userId}/avatarRecords/{avatarRecordId} {
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isExistingOwner(userId);
+    }
+    
+    /**
+     * @description Controls access to avatarImgLib. Only the authenticated user can manage their own image library.
+     * @path /users/{userId}/avatarImgLib/{imgLibId}
+     * @principle Enforces document ownership for image library records and prevents unauthorized access. Validates userId on create and update.
+     */
+    match /users/{userId}/avatarImgLib/{imgLibId} {
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isExistingOwner(userId);
+    }
+    
+    /**
+     * @description Controls access to categories. Only the authenticated user can manage their own categories.
+     * @path /users/{userId}/categories/{categoryId}
+     * @principle Enforces document ownership for categories and prevents unauthorized access. Validates userId on create.
+     */
+    match /users/{userId}/categories/{categoryId} {
+       function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isExistingOwner(userId);
+    }
+
+
+    /**
+     * @description Controls access to public contact form messages.
+     * @path /fb-7-messages/{messageId}
+     * @principle Allows anyone to submit a message, but restricts read/update/delete access.
+     */
+    match /fb-7-messages/{messageId} {
+      allow create: if true;
+      allow read, update, delete: if false;
+    }
+  }
+}
+
+    

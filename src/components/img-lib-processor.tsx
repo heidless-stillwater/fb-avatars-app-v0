@@ -14,8 +14,6 @@ import {
   orderBy,
   Timestamp,
   where,
-  writeBatch,
-  getDocs,
 } from 'firebase/firestore';
 import {
   ref as storageRef,
@@ -27,13 +25,11 @@ import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
 import {
   MoreVertical,
-  Upload,
   Plus,
   Trash2,
   Edit,
   Loader2,
   List,
-  Grid,
   Image as ImageIcon,
   LayoutGrid,
   Filter,
@@ -76,6 +72,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -90,7 +93,6 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { cn } from '@/lib/utils';
 import { Badge } from './ui/badge';
-import { Checkbox } from './ui/checkbox';
 
 interface LibImageRecord {
   id: string;
@@ -101,6 +103,11 @@ interface LibImageRecord {
   libImgDesc?: string;
   libImgStoragePath: string;
   timestamp: Timestamp;
+}
+
+interface CategoryRecord {
+  id: string;
+  name: string;
 }
 
 type DialogState =
@@ -212,7 +219,6 @@ export default function ImgLibProcessor() {
   const [imageDesc, setImageDesc] = useState('');
   const [imageCategory, setImageCategory] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
-  const [updateAllInCategory, setUpdateAllInCategory] = useState(false);
 
   const [isLoadingAction, setIsLoadingAction] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
@@ -229,14 +235,19 @@ export default function ImgLibProcessor() {
 
   const { data: libImages, isLoading: libImagesLoading } = useCollection<LibImageRecord>(libQuery);
 
-  const allCategories = useMemo(() => {
-    if (!libImages) return [];
-    const categories = libImages.map(img => img.libImgCategory).filter(Boolean) as string[];
-    return [...new Set(categories)];
-  }, [libImages]);
+  const categoriesQuery = useMemoFirebase(() => {
+    if (!user) return null;
+    return query(collection(firestore, `users/${user.uid}/categories`), where('userId', '==', user.uid));
+  }, [firestore, user]);
+
+  const { data: allCategories, isLoading: categoriesLoading } = useCollection<CategoryRecord>(categoriesQuery);
+
+  const sortedCategories = useMemo(() => {
+    return allCategories?.sort((a, b) => a.name.localeCompare(b.name)) || [];
+  }, [allCategories]);
+
 
   const openDialog = (state: DialogState) => {
-    setUpdateAllInCategory(false);
     if (state?.type === 'edit') {
         setImageName(state.record.libImgName);
         setImageDesc(state.record.libImgDesc || '');
@@ -376,12 +387,8 @@ export default function ImgLibProcessor() {
         toast({ title: 'Success', description: 'Image added to library.' });
   
       } else if (dialogState.type === 'edit') {
-        const batch = writeBatch(firestore);
-        const originalCategory = dialogState.record.libImgCategory;
-        const categoryChanged = originalCategory !== imageCategory;
-        
         const docRef = doc(firestore, `users/${user.uid}/avatarImgLib`, dialogState.record.id);
-        const updatedData: Partial<LibImageRecord> = {
+        const updatedData: Partial<Omit<LibImageRecord, 'id'>> = {
           libImgName: imageName,
           libImgDesc: imageDesc,
           libImgCategory: imageCategory,
@@ -392,29 +399,10 @@ export default function ImgLibProcessor() {
           updatedData.libImgStoragePath = storagePath;
         }
 
-        batch.update(docRef, updatedData);
+        await updateDoc(docRef, updatedData);
         
-        let updateCount = 1;
+        toast({ title: 'Success', description: 'Image record updated.' });
 
-        if (categoryChanged && updateAllInCategory && originalCategory) {
-            const categoryQuery = query(
-                collection(firestore, `users/${user.uid}/avatarImgLib`),
-                where('libImgCategory', '==', originalCategory)
-            );
-            const snapshot = await getDocs(categoryQuery);
-            snapshot.docs.forEach(docToUpdate => {
-                if (docToUpdate.id !== dialogState.record.id) {
-                    batch.update(docToUpdate.ref, { libImgCategory: imageCategory });
-                    updateCount++;
-                }
-            });
-        }
-        
-        await batch.commit();
-
-        toast({ title: 'Success', description: `Updated ${updateCount} image record(s).` });
-
-        // If a new image was uploaded, delete the old one
         if (downloadURL && storagePath) {
             if (dialogState.record.libImgStoragePath) {
                 const oldImageRef = storageRef(storage, dialogState.record.libImgStoragePath);
@@ -503,7 +491,9 @@ export default function ImgLibProcessor() {
                           <DropdownMenuRadioGroup value={filterCategory || ''} onValueChange={(v) => setFilterCategory(v === '' ? null : v)}>
                               <DropdownMenuRadioItem value="">All Categories</DropdownMenuRadioItem>
                               <DropdownMenuSeparator/>
-                              {allCategories.map(cat => <DropdownMenuRadioItem key={cat} value={cat}>{cat}</DropdownMenuRadioItem>)}
+                              {categoriesLoading ? <DropdownMenuItem disabled>Loading...</DropdownMenuItem> :
+                                sortedCategories.map(cat => <DropdownMenuRadioItem key={cat.id} value={cat.name}>{cat.name}</DropdownMenuRadioItem>)
+                              }
                           </DropdownMenuRadioGroup>
                       </DropdownMenuContent>
                   </DropdownMenu>
@@ -585,21 +575,18 @@ export default function ImgLibProcessor() {
                     </div>
                      <div className="space-y-2">
                         <Label htmlFor="imageCategory">Category</Label>
-                        <Input id="imageCategory" value={imageCategory} onChange={e => setImageCategory(e.target.value)} placeholder="e.g. Portraits, Landscapes (optional)" disabled={isLoadingAction} />
+                        <Select value={imageCategory} onValueChange={setImageCategory} disabled={isLoadingAction}>
+                            <SelectTrigger id="imageCategory">
+                                <SelectValue placeholder="Select a category" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="">Uncategorized</SelectItem>
+                                {categoriesLoading ? <SelectItem value="loading" disabled>Loading...</SelectItem> :
+                                  sortedCategories.map(cat => <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>)
+                                }
+                            </SelectContent>
+                        </Select>
                     </div>
-                    {dialogState?.type === 'edit' && dialogState.record.libImgCategory && dialogState.record.libImgCategory !== imageCategory && (
-                        <div className="flex items-center space-x-2">
-                            <Checkbox 
-                                id="update-all" 
-                                checked={updateAllInCategory}
-                                onCheckedChange={(checked) => setUpdateAllInCategory(checked as boolean)}
-                                disabled={isLoadingAction}
-                            />
-                            <Label htmlFor="update-all" className="text-sm font-normal">
-                                Update category for all images from "{dialogState.record.libImgCategory}" to "{imageCategory || 'Uncategorized'}"
-                            </Label>
-                        </div>
-                    )}
                     <div className="space-y-2">
                         <Label htmlFor="imageDesc">Description</Label>
                         <Textarea id="imageDesc" value={imageDesc} onChange={e => setImageDesc(e.target.value)} placeholder="A brief description (optional)" disabled={isLoadingAction} />

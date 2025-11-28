@@ -8,13 +8,17 @@ import {
   where,
   getDocs,
   writeBatch,
+  doc,
+  addDoc,
+  deleteDoc,
+  serverTimestamp,
 } from 'firebase/firestore';
 import {
   Tag,
   Edit,
   Trash2,
   Loader2,
-  X,
+  Plus,
 } from 'lucide-react';
 
 import { useToast } from '@/hooks/use-toast';
@@ -42,6 +46,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -52,14 +57,16 @@ import {
   useMemoFirebase,
 } from '@/firebase';
 
-interface LibImageRecord {
+interface CategoryRecord {
   id: string;
-  libImgCategory?: string;
+  name: string;
+  userId: string;
 }
 
 type DialogState =
-  | { type: 'rename'; category: string }
-  | { type: 'delete'; category: string }
+  | { type: 'create' }
+  | { type: 'rename'; category: CategoryRecord }
+  | { type: 'delete'; category: CategoryRecord }
   | null;
 
 export default function CategoryProcessor() {
@@ -68,29 +75,25 @@ export default function CategoryProcessor() {
   const { toast } = useToast();
 
   const [dialogState, setDialogState] = useState<DialogState>(null);
-  const [newCategoryName, setNewCategoryName] = useState('');
+  const [categoryName, setCategoryName] = useState('');
   const [isLoadingAction, setIsLoadingAction] = useState(false);
 
-  const libQuery = useMemoFirebase(() => {
+  const categoriesQuery = useMemoFirebase(() => {
     if (!user) return null;
-    return query(collection(firestore, `users/${user.uid}/avatarImgLib`));
+    return query(collection(firestore, `users/${user.uid}/categories`), where('userId', '==', user.uid));
   }, [firestore, user]);
 
-  const { data: libImages, isLoading: libImagesLoading } = useCollection<LibImageRecord>(libQuery);
+  const { data: categories, isLoading: categoriesLoading } = useCollection<CategoryRecord>(categoriesQuery);
 
-  const allCategories = useMemo(() => {
-    if (!libImages) return [];
-    const categories = libImages
-      .map(img => img.libImgCategory)
-      .filter((cat): cat is string => !!cat && cat.trim() !== '');
-    return [...new Set(categories)].sort((a, b) => a.localeCompare(b));
-  }, [libImages]);
+  const sortedCategories = useMemo(() => {
+    return categories?.sort((a, b) => a.name.localeCompare(b.name)) || [];
+  }, [categories]);
 
   const openDialog = (state: DialogState) => {
     if (state?.type === 'rename') {
-        setNewCategoryName(state.category);
+        setCategoryName(state.category.name);
     } else {
-        setNewCategoryName('');
+        setCategoryName('');
     }
     setDialogState(state);
   };
@@ -99,17 +102,39 @@ export default function CategoryProcessor() {
     setDialogState(null);
   };
 
+  const handleCreateCategory = async () => {
+    if (!user || !categoryName.trim()) {
+      toast({ variant: 'destructive', title: 'Invalid Name', description: 'Category name cannot be empty.' });
+      return;
+    }
+    setIsLoadingAction(true);
+    try {
+      const newCategory = {
+        name: categoryName.trim(),
+        userId: user.uid,
+      };
+      await addDoc(collection(firestore, `users/${user.uid}/categories`), newCategory);
+      toast({ title: 'Success', description: 'Category created.' });
+      closeDialog();
+    } catch (error) {
+      console.error("Category creation failed:", error);
+      toast({ variant: 'destructive', title: 'Error', description: 'Could not create category.' });
+    } finally {
+      setIsLoadingAction(false);
+    }
+  };
+
   const handleRenameCategory = async () => {
-    if (dialogState?.type !== 'rename' || !user || !newCategoryName.trim()) {
+    if (dialogState?.type !== 'rename' || !user || !categoryName.trim()) {
       toast({ variant: 'destructive', title: 'Invalid Name', description: 'New category name cannot be empty.' });
       return;
     }
     
     setIsLoadingAction(true);
-    const oldCategoryName = dialogState.category;
-    const finalNewName = newCategoryName.trim();
+    const oldCategory = dialogState.category;
+    const newName = categoryName.trim();
 
-    if (oldCategoryName === finalNewName) {
+    if (oldCategory.name === newName) {
         setIsLoadingAction(false);
         closeDialog();
         return;
@@ -117,18 +142,24 @@ export default function CategoryProcessor() {
     
     try {
         const batch = writeBatch(firestore);
-        const categoryQuery = query(
+        
+        // Update the category document itself
+        const categoryDocRef = doc(firestore, `users/${user.uid}/categories`, oldCategory.id);
+        batch.update(categoryDocRef, { name: newName });
+        
+        // Find all images with the old category and update them
+        const imagesQuery = query(
             collection(firestore, `users/${user.uid}/avatarImgLib`),
-            where('libImgCategory', '==', oldCategoryName)
+            where('libImgCategory', '==', oldCategory.name)
         );
-        const snapshot = await getDocs(categoryQuery);
+        const snapshot = await getDocs(imagesQuery);
 
-        snapshot.docs.forEach(doc => {
-            batch.update(doc.ref, { libImgCategory: finalNewName });
+        snapshot.docs.forEach(docToUpdate => {
+            batch.update(docToUpdate.ref, { libImgCategory: newName });
         });
         
         await batch.commit();
-        toast({ title: 'Success', description: `Renamed category "${oldCategoryName}" to "${finalNewName}".` });
+        toast({ title: 'Success', description: `Renamed category and updated ${snapshot.size} image(s).` });
         closeDialog();
     } catch (error) {
         console.error("Category rename failed:", error);
@@ -146,18 +177,24 @@ export default function CategoryProcessor() {
     
     try {
         const batch = writeBatch(firestore);
-        const categoryQuery = query(
-            collection(firestore, `users/${user.uid}/avatarImgLib`),
-            where('libImgCategory', '==', categoryToDelete)
-        );
-        const snapshot = await getDocs(categoryQuery);
+
+        // Delete the category document
+        const categoryDocRef = doc(firestore, `users/${user.uid}/categories`, categoryToDelete.id);
+        batch.delete(categoryDocRef);
         
-        snapshot.docs.forEach(doc => {
-            batch.update(doc.ref, { libImgCategory: '' }); // or delete(field) if desired
+        // Find all images with the category and unset it
+        const imagesQuery = query(
+            collection(firestore, `users/${user.uid}/avatarImgLib`),
+            where('libImgCategory', '==', categoryToDelete.name)
+        );
+        const snapshot = await getDocs(imagesQuery);
+        
+        snapshot.docs.forEach(docToUpdate => {
+            batch.update(docToUpdate.ref, { libImgCategory: '' });
         });
         
         await batch.commit();
-        toast({ title: 'Success', description: `Removed category "${categoryToDelete}" from all images.`});
+        toast({ title: 'Success', description: `Deleted category and updated ${snapshot.size} image(s).`});
         closeDialog();
     } catch (error) {
         console.error("Category delete failed:", error);
@@ -169,21 +206,27 @@ export default function CategoryProcessor() {
 
   return (
     <Card>
-        <CardHeader>
+        <CardHeader className='flex-row items-start justify-between'>
+          <div>
             <CardTitle>Category Manager</CardTitle>
-            <CardDescription>Rename or remove categories across your entire image library.</CardDescription>
+            <CardDescription>Create, rename, or remove categories across your entire image library.</CardDescription>
+          </div>
+          <Button onClick={() => openDialog({ type: 'create' })}>
+            <Plus className="mr-2 h-4 w-4" />
+            New Category
+          </Button>
         </CardHeader>
         <CardContent>
-            {libImagesLoading ? (
+            {categoriesLoading ? (
                 <div className="flex items-center justify-center h-24">
                     <Loader2 className="h-8 w-8 animate-spin" />
                 </div>
-            ) : allCategories.length > 0 ? (
+            ) : sortedCategories.length > 0 ? (
                 <div className="border rounded-md">
-                    {allCategories.map((category, index) => (
-                        <div key={category} className={`flex items-center p-3 ${index < allCategories.length - 1 ? 'border-b' : ''}`}>
+                    {sortedCategories.map((category, index) => (
+                        <div key={category.id} className={`flex items-center p-3 ${index < sortedCategories.length - 1 ? 'border-b' : ''}`}>
                             <Tag className="mr-3 h-5 w-5 text-muted-foreground" />
-                            <span className="flex-1 text-sm font-medium">{category}</span>
+                            <span className="flex-1 text-sm font-medium">{category.name}</span>
                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openDialog({ type: 'rename', category })}>
                                 <Edit className="h-4 w-4" />
                             </Button>
@@ -196,27 +239,32 @@ export default function CategoryProcessor() {
             ) : (
                 <div className="flex flex-col items-center justify-center h-24 rounded-md border border-dashed text-sm text-muted-foreground">
                     <Tag className="h-8 w-8 mb-2" />
-                    <p>No categories found. Assign categories to images to manage them here.</p>
+                    <p>No categories found. Create one to get started!</p>
                 </div>
             )}
         </CardContent>
 
-        {/* Rename Dialog */}
-        <Dialog open={dialogState?.type === 'rename'} onOpenChange={(isOpen) => !isOpen && closeDialog()}>
+        {/* Create/Rename Dialog */}
+        <Dialog open={dialogState?.type === 'create' || dialogState?.type === 'rename'} onOpenChange={(isOpen) => !isOpen && closeDialog()}>
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle>Rename Category "{dialogState?.type === 'rename' && dialogState.category}"</DialogTitle>
+                    <DialogTitle>
+                        {dialogState?.type === 'create' ? 'Create New Category' : `Rename Category "${dialogState?.type === 'rename' && dialogState.category.name}"`}
+                    </DialogTitle>
+                     <DialogDescription>
+                        {dialogState?.type === 'rename' && 'This will update the category name for all associated images.'}
+                    </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                     <div className="space-y-2">
-                        <Label htmlFor="categoryName">New Category Name</Label>
-                        <Input id="categoryName" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} disabled={isLoadingAction} />
+                        <Label htmlFor="categoryName">Category Name</Label>
+                        <Input id="categoryName" value={categoryName} onChange={e => setCategoryName(e.target.value)} disabled={isLoadingAction} />
                     </div>
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={closeDialog} disabled={isLoadingAction}>Cancel</Button>
-                    <Button onClick={handleRenameCategory} disabled={isLoadingAction || !newCategoryName.trim()}>
-                        {isLoadingAction ? <Loader2 className="animate-spin" /> : 'Rename'}
+                    <Button onClick={dialogState?.type === 'create' ? handleCreateCategory : handleRenameCategory} disabled={isLoadingAction || !categoryName.trim()}>
+                        {isLoadingAction ? <Loader2 className="animate-spin" /> : (dialogState?.type === 'create' ? 'Create' : 'Rename')}
                     </Button>
                 </DialogFooter>
             </DialogContent>
@@ -228,13 +276,13 @@ export default function CategoryProcessor() {
                 <AlertDialogHeader>
                     <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                     <AlertDialogDescription>
-                        This action will remove the category "{dialogState?.type === 'delete' && dialogState.category}" from all associated images. The images themselves will not be deleted.
+                        This will permanently delete the category "{dialogState?.type === 'delete' && dialogState.category.name}" and remove it from all associated images. The images themselves will not be deleted.
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                     <AlertDialogCancel onClick={closeDialog} disabled={isLoadingAction}>Cancel</AlertDialogCancel>
                     <AlertDialogAction onClick={handleDeleteCategory} disabled={isLoadingAction} className="bg-destructive hover:bg-destructive/90">
-                        {isLoadingAction ? <Loader2 className="animate-spin" /> : 'Yes, Remove Category'}
+                        {isLoadingAction ? <Loader2 className="animate-spin" /> : 'Yes, Delete Category'}
                     </AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>
@@ -242,3 +290,5 @@ export default function CategoryProcessor() {
     </Card>
   );
 }
+
+    

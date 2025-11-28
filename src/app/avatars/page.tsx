@@ -3,6 +3,7 @@
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import AvatarsProcessor from "@/components/avatars-processor";
 import ImgLibProcessor from "@/components/img-lib-processor";
+import CategoryProcessor from "@/components/category-processor";
 import { Separator } from "@/components/ui/separator";
 
 export default function AvatarsPage() {
@@ -17,6 +18,8 @@ export default function AvatarsPage() {
                     <AvatarsProcessor />
                 </CardContent>
             </Card>
+            <Separator />
+            <CategoryProcessor />
             <Separator />
             <ImgLibProcessor />
         </div>

@@ -290,6 +290,10 @@
           "type": "string",
           "description": "The name of the library image."
         },
+        "libImgCategory": {
+          "type": "string",
+          "description": "The category of the library image."
+        },
         "libImg": {
           "type": "string",
           "description": "URL of the library image.",
@@ -298,6 +302,10 @@
         "libImgDesc": {
           "type": "string",
           "description": "Optional description for the library image."
+        },
+        "libImgStoragePath": {
+          "type": "string",
+          "description": "The path to the image in Firebase Storage."
         },
         "timestamp": {
           "type": "string",
@@ -310,7 +318,33 @@
         "userId",
         "libImgName",
         "libImg",
+        "libImgStoragePath",
         "timestamp"
+      ]
+    },
+    "Category": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Category",
+      "type": "object",
+      "description": "Represents a category for organizing images in the Avatar Image Library.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the category, typically the category name itself."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User who owns this category."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the category."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "name"
       ]
     }
   },

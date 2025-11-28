@@ -19,6 +19,7 @@ import {
   getDownloadURL,
   deleteObject,
   uploadString,
+  UploadTask,
 } from 'firebase/storage';
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
@@ -252,34 +253,37 @@ export default function AvatarsProcessor() {
   const uploadImage = async (file: File | string, userId: string, fileName: string): Promise<{ downloadURL: string, storagePath: string }> => {
     const storagePath = `users/${userId}/avatarImages/${uuidv4()}-${fileName}`;
     const fileStorageRef = storageRef(storage, storagePath);
-    
-    let uploadTask;
-    if (typeof file === 'string') {
-        uploadTask = uploadString(fileStorageRef, file, 'data_url');
-    } else {
-        uploadTask = uploadBytesResumable(fileStorageRef, file);
-    }
 
     setUploadProgress(0);
 
-    const downloadURL = await new Promise<string>((resolve, reject) => {
-        const task = (typeof file === 'string') ? uploadTask : uploadBytesResumable(fileStorageRef, file);
-        
-        task.on('state_changed',
-            (snapshot) => {
-                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                setUploadProgress(progress);
-            },
-            reject,
-            async () => {
-                const url = await getDownloadURL(task.snapshot.ref);
-                resolve(url);
-            }
-        );
-    });
+    if (typeof file === 'string') {
+        // Handle data URL upload (no progress tracking)
+        const uploadResult = await uploadString(fileStorageRef, file, 'data_url');
+        setUploadProgress(100);
+        const downloadURL = await getDownloadURL(uploadResult.ref);
+        setUploadProgress(null);
+        return { downloadURL, storagePath };
+    } else {
+        // Handle File upload (with progress tracking)
+        const uploadTask: UploadTask = uploadBytesResumable(fileStorageRef, file);
 
-    setUploadProgress(null);
-    return { downloadURL, storagePath };
+        const downloadURL = await new Promise<string>((resolve, reject) => {
+            uploadTask.on('state_changed',
+                (snapshot) => {
+                    const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                    setUploadProgress(progress);
+                },
+                reject, // on error
+                async () => { // on success
+                    const url = await getDownloadURL(uploadTask.snapshot.ref);
+                    resolve(url);
+                }
+            );
+        });
+
+        setUploadProgress(null);
+        return { downloadURL, storagePath };
+    }
   };
 
 

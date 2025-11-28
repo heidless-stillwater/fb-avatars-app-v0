@@ -16,20 +16,33 @@ import { Button } from "@/components/ui/button";
 import { useState } from "react";
 
 export default function AvatarsPage() {
+    const [isAvatarsOpen, setIsAvatarsOpen] = useState(false);
     const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
     const [isImageLibraryOpen, setIsImageLibraryOpen] = useState(true);
 
     return (
         <div className="p-4 sm:p-6 md:p-8 h-full space-y-8">
-            <Card>
-                <CardHeader>
-                    <CardTitle>Avatars</CardTitle>
-                    <CardDescription>Create and manage your avatars.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <AvatarsProcessor />
-                </CardContent>
-            </Card>
+            <Collapsible open={isAvatarsOpen} onOpenChange={setIsAvatarsOpen}>
+                <div className="flex items-center justify-between rounded-lg border p-4">
+                    <div>
+                        <h2 className="text-xl font-semibold">Avatars</h2>
+                        <p className="text-sm text-muted-foreground">Create and manage your avatars.</p>
+                    </div>
+                    <CollapsibleTrigger asChild>
+                        <Button variant="ghost" size="sm" className="w-9 p-0">
+                            <ChevronsUpDown className="h-4 w-4" />
+                            <span className="sr-only">Toggle Avatars</span>
+                        </Button>
+                    </CollapsibleTrigger>
+                </div>
+                <CollapsibleContent className="space-y-4 pt-4">
+                     <Card>
+                        <CardContent className="pt-6">
+                            <AvatarsProcessor />
+                        </CardContent>
+                    </Card>
+                </CollapsibleContent>
+            </Collapsible>
             <Separator />
             <Collapsible open={isCategoryManagerOpen} onOpenChange={setIsCategoryManagerOpen}>
                 <div className="flex items-center justify-between">

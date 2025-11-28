@@ -14,6 +14,8 @@ import {
   orderBy,
   Timestamp,
   where,
+  writeBatch,
+  getDocs,
 } from 'firebase/firestore';
 import {
   ref as storageRef,
@@ -88,6 +90,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { cn } from '@/lib/utils';
 import { Badge } from './ui/badge';
+import { Checkbox } from './ui/checkbox';
 
 interface LibImageRecord {
   id: string;
@@ -209,6 +212,7 @@ export default function ImgLibProcessor() {
   const [imageDesc, setImageDesc] = useState('');
   const [imageCategory, setImageCategory] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [updateAllInCategory, setUpdateAllInCategory] = useState(false);
 
   const [isLoadingAction, setIsLoadingAction] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
@@ -232,6 +236,7 @@ export default function ImgLibProcessor() {
   }, [libImages]);
 
   const openDialog = (state: DialogState) => {
+    setUpdateAllInCategory(false);
     if (state?.type === 'edit') {
         setImageName(state.record.libImgName);
         setImageDesc(state.record.libImgDesc || '');
@@ -371,6 +376,10 @@ export default function ImgLibProcessor() {
         toast({ title: 'Success', description: 'Image added to library.' });
   
       } else if (dialogState.type === 'edit') {
+        const batch = writeBatch(firestore);
+        const originalCategory = dialogState.record.libImgCategory;
+        const categoryChanged = originalCategory !== imageCategory;
+        
         const docRef = doc(firestore, `users/${user.uid}/avatarImgLib`, dialogState.record.id);
         const updatedData: Partial<LibImageRecord> = {
           libImgName: imageName,
@@ -383,8 +392,27 @@ export default function ImgLibProcessor() {
           updatedData.libImgStoragePath = storagePath;
         }
 
-        await updateDoc(docRef, updatedData);
-        toast({ title: 'Success', description: 'Image details updated.' });
+        batch.update(docRef, updatedData);
+        
+        let updateCount = 1;
+
+        if (categoryChanged && updateAllInCategory && originalCategory) {
+            const categoryQuery = query(
+                collection(firestore, `users/${user.uid}/avatarImgLib`),
+                where('libImgCategory', '==', originalCategory)
+            );
+            const snapshot = await getDocs(categoryQuery);
+            snapshot.docs.forEach(docToUpdate => {
+                if (docToUpdate.id !== dialogState.record.id) {
+                    batch.update(docToUpdate.ref, { libImgCategory: imageCategory });
+                    updateCount++;
+                }
+            });
+        }
+        
+        await batch.commit();
+
+        toast({ title: 'Success', description: `Updated ${updateCount} image record(s).` });
 
         // If a new image was uploaded, delete the old one
         if (downloadURL && storagePath) {
@@ -559,6 +587,19 @@ export default function ImgLibProcessor() {
                         <Label htmlFor="imageCategory">Category</Label>
                         <Input id="imageCategory" value={imageCategory} onChange={e => setImageCategory(e.target.value)} placeholder="e.g. Portraits, Landscapes (optional)" disabled={isLoadingAction} />
                     </div>
+                    {dialogState?.type === 'edit' && dialogState.record.libImgCategory && dialogState.record.libImgCategory !== imageCategory && (
+                        <div className="flex items-center space-x-2">
+                            <Checkbox 
+                                id="update-all" 
+                                checked={updateAllInCategory}
+                                onCheckedChange={(checked) => setUpdateAllInCategory(checked as boolean)}
+                                disabled={isLoadingAction}
+                            />
+                            <Label htmlFor="update-all" className="text-sm font-normal">
+                                Update category for all images from "{dialogState.record.libImgCategory}" to "{imageCategory || 'Uncategorized'}"
+                            </Label>
+                        </div>
+                    )}
                     <div className="space-y-2">
                         <Label htmlFor="imageDesc">Description</Label>
                         <Textarea id="imageDesc" value={imageDesc} onChange={e => setImageDesc(e.target.value)} placeholder="A brief description (optional)" disabled={isLoadingAction} />
@@ -603,8 +644,5 @@ export default function ImgLibProcessor() {
     </TooltipProvider>
   );
 }
-
-
-    
 
     

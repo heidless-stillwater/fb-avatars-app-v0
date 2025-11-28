@@ -299,7 +299,7 @@ export default function AvatarsProcessor() {
 
   const handleSubmit = async () => {
      if (!user || !dialogState || !avatarName.trim() || (dialogState.type === 'create' && !avatarFile) ) {
-        toast({ variant: "destructive", title: "Missing Information", description: "Avatar name is required. A new image is required for creation." });
+        toast({ variant: "destructive", title: "Missing Information", description: "Avatar name is required. An image is required for creation." });
         return;
      }
 
@@ -513,7 +513,7 @@ export default function AvatarsProcessor() {
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={closeDialog} disabled={isLoadingAction}>Cancel</Button>
-                    <Button onClick={handleSubmit} disabled={isLoadingAction || !avatarName.trim() || (dialogState?.type === 'create' && !avatarFile) || isGeneratingAI}>
+                    <Button onClick={handleSubmit} disabled={isLoadingAction || !avatarName.trim() || (dialogState?.type === 'create' && !avatarFile && !generatedAvatarUrl) || (dialogState?.type === 'edit' && !avatarName.trim()) || isGeneratingAI}>
                         {isLoadingAction ? <Loader2 className="animate-spin" /> : 'Save'}
                     </Button>
                 </DialogFooter>

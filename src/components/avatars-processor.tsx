@@ -225,6 +225,13 @@ export default function AvatarsProcessor() {
     return avatarPrompt.trim() === '' ? avatarName : avatarPrompt;
   }, [avatarPrompt, avatarName]);
 
+  const imagePreviewUrl = useMemo(() => {
+    if (generatedAvatarUrl) return generatedAvatarUrl;
+    if (avatarFile) return URL.createObjectURL(avatarFile);
+    if (dialogState?.type === 'edit') return dialogState.record.avatarImg;
+    return null;
+  }, [generatedAvatarUrl, avatarFile, dialogState]);
+
   const openDialog = (state: DialogState) => {
     if (state?.type === 'edit') {
         setAvatarName(state.record.avatarName);
@@ -304,38 +311,52 @@ export default function AvatarsProcessor() {
   const uploadImage = async (file: File | string, userId: string, fileName: string): Promise<{ downloadURL: string, storagePath: string }> => {
     const storagePath = `users/${userId}/avatarImages/${uuidv4()}-${fileName}`;
     const fileStorageRef = storageRef(storage, storagePath);
-
+  
     setUploadProgress(0);
-
+  
     if (typeof file === 'string') {
-        // Handle data URL upload (no progress tracking available with uploadString)
-        const uploadResult = await uploadString(fileStorageRef, file, 'data_url');
-        setUploadProgress(100);
-        const downloadURL = await getDownloadURL(uploadResult.ref);
-        setUploadProgress(null);
-        return { downloadURL, storagePath };
+      // Handle data URL upload.
+      // We can't track progress for this, but we can fake it a bit.
+      if (file.startsWith('http')) {
+        // It's a remote URL, we need to fetch it first.
+        const response = await fetch(file);
+        const blob = await response.blob();
+        return uploadImage(blob as File, userId, fileName); // Recurse with blob
+      }
+  
+      // It's a data URI
+      const uploadTask = uploadString(fileStorageRef, file, 'data_url');
+      return new Promise((resolve, reject) => {
+        uploadTask.then(async (snapshot) => {
+          setUploadProgress(100);
+          const downloadURL = await getDownloadURL(snapshot.ref);
+          setUploadProgress(null);
+          resolve({ downloadURL, storagePath });
+        }).catch(reject);
+      });
+  
     } else {
-        // Handle File upload (with progress tracking)
-        const uploadTask = uploadBytesResumable(fileStorageRef, file);
-
-        return new Promise((resolve, reject) => {
-            uploadTask.on('state_changed',
-                (snapshot) => {
-                    const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                    setUploadProgress(progress);
-                },
-                reject, // on error
-                async () => { // on success
-                    try {
-                        const url = await getDownloadURL(uploadTask.snapshot.ref);
-                        setUploadProgress(null);
-                        resolve({ downloadURL: url, storagePath });
-                    } catch (e) {
-                        reject(e);
-                    }
-                }
-            );
-        });
+      // Handle File object upload (with progress tracking)
+      const uploadTask = uploadBytesResumable(fileStorageRef, file);
+      return new Promise((resolve, reject) => {
+        uploadTask.on(
+          'state_changed',
+          (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            setUploadProgress(progress);
+          },
+          reject,
+          async () => {
+            try {
+              const url = await getDownloadURL(uploadTask.snapshot.ref);
+              setUploadProgress(null);
+              resolve({ downloadURL: url, storagePath });
+            } catch (e) {
+              reject(e);
+            }
+          }
+        );
+      });
     }
   };
 
@@ -370,15 +391,16 @@ export default function AvatarsProcessor() {
   };
 
   const handleSaveToLibrary = async () => {
-    if (!user || !generatedAvatarUrl || !avatarName.trim()) {
-        toast({ variant: "destructive", title: "Missing Information", description: "Avatar name and a generated image are required." });
+    if (!user || !imagePreviewUrl || !avatarName.trim()) {
+        toast({ variant: "destructive", title: "Missing Information", description: "Avatar name and an image are required." });
         return;
     }
-
     setIsSavingToLib(true);
     try {
-        const fileName = `${effectivePrompt.substring(0, 20) || 'avatar'}.png`;
-        const { downloadURL, storagePath } = await uploadImage(generatedAvatarUrl, user.uid, fileName);
+        const imageToSave = avatarFile || imagePreviewUrl;
+        const fileName = avatarFile?.name || `${effectivePrompt.substring(0, 20) || 'avatar'}.png`;
+
+        const { downloadURL, storagePath } = await uploadImage(imageToSave, user.uid, fileName);
 
         const libImgData = {
             userId: user.uid,
@@ -404,7 +426,7 @@ export default function AvatarsProcessor() {
       return;
     }
   
-    if (dialogState.type === 'create' && !avatarFile && !generatedAvatarUrl) {
+    if (dialogState.type === 'create' && !imagePreviewUrl) {
       toast({ variant: "destructive", title: "Missing Information", description: "An image is required for creation." });
       return;
     }
@@ -416,6 +438,7 @@ export default function AvatarsProcessor() {
       let downloadURL: string | null = null;
       let storagePath: string | null = null;
 
+      // Only upload if there's a new file or a new generated image
       if (avatarFile || generatedAvatarUrl) {
           const fileToUpload = generatedAvatarUrl || avatarFile!;
           const fileName = wasAIGenerated 
@@ -636,7 +659,7 @@ export default function AvatarsProcessor() {
                                     Gen with AI
                                 </Button>
                             )}
-                            <Button id="save-image" onClick={handleSaveToLibrary} disabled={isSavingToLib || !generatedAvatarUrl} variant={generateWithAI ? "secondary" : "default"} className="flex-1">
+                            <Button id="save-image" onClick={handleSaveToLibrary} disabled={isSavingToLib || isLoadingAction || !imagePreviewUrl || !avatarName.trim()} variant={generateWithAI ? "secondary" : "default"} className="flex-1">
                                 {isSavingToLib ? <Loader2 className="animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                                 Save Image to Library
                             </Button>
@@ -656,9 +679,9 @@ export default function AvatarsProcessor() {
                     <div className="space-y-2">
                         <Label>Image Preview</Label>
                         <div className="relative w-full aspect-square bg-muted rounded-md flex items-center justify-center overflow-hidden">
-                            { (avatarFile || generatedAvatarUrl || (dialogState?.type === 'edit' && dialogState.record.avatarImg)) ?
+                            { imagePreviewUrl ?
                                <Image 
-                                    src={generatedAvatarUrl || (avatarFile ? URL.createObjectURL(avatarFile) : dialogState?.type === 'edit' ? dialogState.record.avatarImg : '')} 
+                                    src={imagePreviewUrl}
                                     alt="Avatar preview" 
                                     fill 
                                     className="object-cover"
@@ -672,7 +695,7 @@ export default function AvatarsProcessor() {
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={closeDialog} disabled={isLoadingAction}>Cancel</Button>
-                    <Button onClick={handleSubmit} disabled={isLoadingAction || !avatarName.trim() || (dialogState?.type === 'create' && !avatarFile && !generatedAvatarUrl) || isGeneratingAI}>
+                    <Button onClick={handleSubmit} disabled={isLoadingAction || !avatarName.trim() || (dialogState?.type === 'create' && !imagePreviewUrl) || isGeneratingAI}>
                         {isLoadingAction ? <Loader2 className="animate-spin" /> : 'Save'}
                     </Button>
                 </DialogFooter>
@@ -702,3 +725,4 @@ export default function AvatarsProcessor() {
 
     
     
+

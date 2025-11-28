@@ -659,9 +659,9 @@ export default function AvatarsProcessor() {
                                     Gen with AI
                                 </Button>
                             )}
-                            <Button id="save-image" onClick={handleSaveToLibrary} disabled={isSavingToLib || isLoadingAction || !imagePreviewUrl || !avatarName.trim()} variant={generateWithAI ? "secondary" : "default"} className="flex-1">
+                            <Button id="save-image" onClick={handleSaveToLibrary} disabled={isSavingToLib || isLoadingAction || !imagePreviewUrl || !avatarName.trim()} variant="secondary" className="flex-1">
                                 {isSavingToLib ? <Loader2 className="animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                                Save Image to Library
+                                Save Preview to Library
                             </Button>
                         </div>
 
@@ -722,7 +722,3 @@ export default function AvatarsProcessor() {
     </TooltipProvider>
   );
 }
-
-    
-    
-

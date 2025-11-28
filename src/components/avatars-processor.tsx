@@ -336,20 +336,29 @@ export default function AvatarsProcessor() {
     setIsLoadingAction(true);
   
     try {
-      let wasAIGenerated = false;
+      const wasAIGenerated = !!generatedAvatarUrl;
+      let downloadURL: string | null = null;
+      let storagePath: string | null = null;
+
+      if (avatarFile || generatedAvatarUrl) {
+          const fileToUpload = generatedAvatarUrl || avatarFile!;
+          const fileName = wasAIGenerated 
+            ? `${effectivePrompt.substring(0, 20) || 'avatar'}.png` 
+            : avatarFile!.name;
+          const uploadResult = await uploadImage(fileToUpload, user.uid, fileName);
+          downloadURL = uploadResult.downloadURL;
+          storagePath = uploadResult.storagePath;
+      }
 
       if (dialogState.type === 'create') {
-        const fileToUpload = generatedAvatarUrl ? generatedAvatarUrl : avatarFile!;
-        wasAIGenerated = !!generatedAvatarUrl;
-        const fileName = wasAIGenerated ? `${effectivePrompt.substring(0, 20) || 'avatar'}.png` : avatarFile!.name;
-  
-        const { downloadURL, storagePath } = await uploadImage(fileToUpload, user.uid, fileName);
-  
+        if (!downloadURL || !storagePath) {
+          throw new Error("Image upload failed, cannot create record.");
+        }
         const avatarData = {
           userId: user.uid,
           avatarName,
           avatarDesc,
-          avatarPrompt,
+          avatarPrompt: wasAIGenerated ? effectivePrompt : '',
           avatarImg: downloadURL,
           avatarStoragePath: storagePath,
           timestamp: serverTimestamp(),
@@ -357,57 +366,43 @@ export default function AvatarsProcessor() {
         await addDoc(collection(firestore, `users/${user.uid}/avatarRecords`), avatarData);
         toast({ title: 'Success', description: 'Avatar created.' });
   
-        if (wasAIGenerated) {
-            const libImgData = {
-                userId: user.uid,
-                libImgName: avatarName,
-                libImg: downloadURL,
-                libImgDesc: avatarDesc,
-                timestamp: serverTimestamp(),
-            };
-            await addDoc(collection(firestore, `users/${user.uid}/avatarImgLib`), libImgData);
-            toast({ title: 'Image saved to library' });
-        }
-  
       } else if (dialogState.type === 'edit') {
         const docRef = doc(firestore, `users/${user.uid}/avatarRecords`, dialogState.record.id);
         const updatedData: Partial<AvatarRecord> = {
           avatarName,
           avatarDesc,
-          avatarPrompt,
+          avatarPrompt: wasAIGenerated ? effectivePrompt : (avatarPrompt || ''),
         };
   
-        if (avatarFile || generatedAvatarUrl) {
-          const fileToUpload = generatedAvatarUrl ? generatedAvatarUrl : avatarFile!;
-          wasAIGenerated = !!generatedAvatarUrl;
-          const fileName = wasAIGenerated ? `${effectivePrompt.substring(0, 20) || 'avatar'}.png` : avatarFile!.name;
-  
-          const { downloadURL, storagePath } = await uploadImage(fileToUpload, user.uid, fileName);
+        if (downloadURL && storagePath) {
           updatedData.avatarImg = downloadURL;
           updatedData.avatarStoragePath = storagePath;
-  
-          if (wasAIGenerated) {
-            const libImgData = {
-                userId: user.uid,
-                libImgName: avatarName,
-                libImg: downloadURL,
-                libImgDesc: avatarDesc,
-                timestamp: serverTimestamp(),
-            };
-            await addDoc(collection(firestore, `users/${user.uid}/avatarImgLib`), libImgData);
-            toast({ title: 'Image saved to library' });
-          }
-
-          // Delete old image only if a new one was uploaded/generated
-          if (dialogState.record.avatarStoragePath) {
-            const oldImageRef = storageRef(storage, dialogState.record.avatarStoragePath);
-            await deleteObject(oldImageRef).catch(err => console.warn("Could not delete old image:", err));
-          }
         }
-  
+
         await updateDoc(docRef, updatedData);
         toast({ title: 'Success', description: 'Avatar updated.' });
+
+        if (downloadURL && storagePath) {
+            // Delete old image only if a new one was uploaded/generated and successfully saved
+            if (dialogState.record.avatarStoragePath) {
+                const oldImageRef = storageRef(storage, dialogState.record.avatarStoragePath);
+                await deleteObject(oldImageRef).catch(err => console.warn("Could not delete old image:", err));
+            }
+        }
       }
+
+      if (wasAIGenerated && downloadURL) {
+          const libImgData = {
+              userId: user.uid,
+              libImgName: avatarName,
+              libImg: downloadURL,
+              libImgDesc: avatarDesc,
+              timestamp: serverTimestamp(),
+          };
+          await addDoc(collection(firestore, `users/${user.uid}/avatarImgLib`), libImgData);
+          toast({ title: 'Image saved to library' });
+      }
+
       closeDialog();
     } catch (error) {
       console.error("Avatar action failed:", error);

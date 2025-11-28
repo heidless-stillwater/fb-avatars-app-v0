@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useMemo, useRef, ChangeEvent, useEffect } from 'react';
@@ -35,6 +36,7 @@ import {
   UserCircle,
   Wand2,
   Save,
+  LayoutGrid,
 } from 'lucide-react';
 
 import { useToast } from '@/hooks/use-toast';
@@ -42,8 +44,6 @@ import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
-  CardHeader,
-  CardTitle,
 } from '@/components/ui/card';
 import {
   DropdownMenu,
@@ -105,7 +105,7 @@ type DialogState =
   | { type: 'delete'; record: AvatarRecord }
   | null;
 
-type ViewMode = 'list' | 'grid';
+type ViewMode = 'list' | 'grid' | 'small' | 'medium' | 'large' | 'extra-large';
 
 const AvatarGridItem = ({ record, onOpenDialog, onDownload }: { record: AvatarRecord, onOpenDialog: (state: DialogState) => void, onDownload: (record: AvatarRecord) => void }) => (
     <Card className="w-full group">
@@ -500,6 +500,22 @@ export default function AvatarsProcessor() {
         setIsLoadingAction(false);
     }
   };
+  
+  const viewClasses: Record<ViewMode, string> = {
+    list: "flex flex-col gap-1",
+    grid: "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5",
+    small: "grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8",
+    medium: "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5",
+    large: "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4",
+    "extra-large": "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
+  };
+
+  const CurrentViewIcon = useMemo(() => {
+    switch(view) {
+        case 'list': return List;
+        default: return LayoutGrid;
+    }
+  }, [view]);
 
   return (
     <TooltipProvider>
@@ -514,7 +530,7 @@ export default function AvatarsProcessor() {
                             <TooltipTrigger asChild>
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="outline" size="icon">
-                                        {view === 'grid' ? <Grid /> : <List />}
+                                        <CurrentViewIcon className="h-4 w-4" />
                                         <span className="sr-only">View Options</span>
                                     </Button>
                                 </DropdownMenuTrigger>
@@ -524,8 +540,12 @@ export default function AvatarsProcessor() {
                         <DropdownMenuContent>
                             <DropdownMenuLabel>Display</DropdownMenuLabel>
                             <DropdownMenuRadioGroup value={view} onValueChange={(v) => setView(v as ViewMode)}>
-                                <DropdownMenuRadioItem value="grid">Grid</DropdownMenuRadioItem>
                                 <DropdownMenuRadioItem value="list">List</DropdownMenuRadioItem>
+                                <DropdownMenuRadioItem value="grid">Grid</DropdownMenuRadioItem>
+                                <DropdownMenuRadioItem value="small">Small Grid</DropdownMenuRadioItem>
+                                <DropdownMenuRadioItem value="medium">Medium Grid</DropdownMenuRadioItem>
+                                <DropdownMenuRadioItem value="large">Large Grid</DropdownMenuRadioItem>
+                                <DropdownMenuRadioItem value="extra-large">Extra Large Grid</DropdownMenuRadioItem>
                             </DropdownMenuRadioGroup>
                         </DropdownMenuContent>
                     </DropdownMenu>
@@ -548,13 +568,13 @@ export default function AvatarsProcessor() {
             )}
             
             {!avatarsLoading && avatars && avatars.length > 0 ? (
-                 view === 'grid' ? (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                        {avatars.map(avatar => <AvatarGridItem key={avatar.id} record={avatar} onOpenDialog={openDialog} onDownload={handleDownload}/>)}
-                    </div>
-                 ) : (
+                 view === 'list' ? (
                     <div className="flex flex-col gap-1 border rounded-lg p-2">
                         {avatars.map(avatar => <AvatarListItem key={avatar.id} record={avatar} onOpenDialog={openDialog} onDownload={handleDownload}/>)}
+                    </div>
+                 ) : (
+                    <div className={cn("grid gap-4", viewClasses[view])}>
+                        {avatars.map(avatar => <AvatarGridItem key={avatar.id} record={avatar} onOpenDialog={openDialog} onDownload={handleDownload}/>)}
                     </div>
                  )
             ) : (
@@ -677,3 +697,5 @@ export default function AvatarsProcessor() {
     </TooltipProvider>
   );
 }
+
+    

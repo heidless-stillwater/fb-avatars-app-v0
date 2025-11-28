@@ -198,7 +198,7 @@ export default function AvatarsProcessor() {
   const { toast } = useToast();
 
   const [dialogState, setDialogState] = useState<DialogState>(null);
-  const [view, setView] = useState<ViewMode>('grid');
+  const [view, setView] = useState<ViewMode>('small');
 
   const [avatarName, setAvatarName] = useState('');
   const [avatarDesc, setAvatarDesc] = useState('');
@@ -315,16 +315,12 @@ export default function AvatarsProcessor() {
     setUploadProgress(0);
   
     if (typeof file === 'string') {
-      // Handle data URL upload.
-      // We can't track progress for this, but we can fake it a bit.
       if (file.startsWith('http')) {
-        // It's a remote URL, we need to fetch it first.
         const response = await fetch(file);
         const blob = await response.blob();
         return uploadImage(blob as File, userId, fileName); // Recurse with blob
       }
   
-      // It's a data URI
       const uploadTask = uploadString(fileStorageRef, file, 'data_url');
       return new Promise((resolve, reject) => {
         uploadTask.then(async (snapshot) => {
@@ -336,7 +332,6 @@ export default function AvatarsProcessor() {
       });
   
     } else {
-      // Handle File object upload (with progress tracking)
       const uploadTask = uploadBytesResumable(fileStorageRef, file);
       return new Promise((resolve, reject) => {
         uploadTask.on(
@@ -438,7 +433,6 @@ export default function AvatarsProcessor() {
       let downloadURL: string | null = null;
       let storagePath: string | null = null;
 
-      // Only upload if there's a new file or a new generated image
       if (avatarFile || generatedAvatarUrl) {
           const fileToUpload = generatedAvatarUrl || avatarFile!;
           const fileName = wasAIGenerated 
@@ -653,16 +647,23 @@ export default function AvatarsProcessor() {
                         </div>
 
                         <div className="flex gap-2">
-                            {generateWithAI && (
-                               <Button id="gen-but" onClick={handleGenWithAI} disabled={isGeneratingAI || isLoadingAction || !effectivePrompt.trim()} className="flex-1">
-                                    {isGeneratingAI ? <Loader2 className="animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                                    Gen with AI
+                            {generateWithAI ? (
+                               <>
+                                <Button id="gen-but" onClick={handleGenWithAI} disabled={isGeneratingAI || isLoadingAction || !effectivePrompt.trim()} className="flex-1">
+                                     {isGeneratingAI ? <Loader2 className="animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                                     Gen with AI
+                                 </Button>
+                                 <Button id="save-gen-image" onClick={handleSaveToLibrary} disabled={isSavingToLib || isLoadingAction || !generatedAvatarUrl || !avatarName.trim()} variant="secondary" className="flex-1">
+                                     {isSavingToLib ? <Loader2 className="animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                                     Save Image to Library
+                                 </Button>
+                               </>
+                            ) : (
+                                <Button id="save-prev-image" onClick={handleSaveToLibrary} disabled={isSavingToLib || isLoadingAction || !imagePreviewUrl || !avatarName.trim()} variant="secondary" className="w-full">
+                                    {isSavingToLib ? <Loader2 className="animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                                    Save Preview Image to Library
                                 </Button>
                             )}
-                            <Button id="save-image" onClick={handleSaveToLibrary} disabled={isSavingToLib || isLoadingAction || !imagePreviewUrl || !avatarName.trim()} variant="secondary" className="flex-1">
-                                {isSavingToLib ? <Loader2 className="animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                                Save Preview to Library
-                            </Button>
                         </div>
 
                         {!generateWithAI && (
@@ -722,3 +723,5 @@ export default function AvatarsProcessor() {
     </TooltipProvider>
   );
 }
+
+    

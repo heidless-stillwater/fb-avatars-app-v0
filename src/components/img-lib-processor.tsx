@@ -35,6 +35,7 @@ import {
   Image as ImageIcon,
   LayoutGrid,
   Filter,
+  Download,
 } from 'lucide-react';
 
 import { useToast } from '@/hooks/use-toast';
@@ -107,7 +108,7 @@ type DialogState =
 
 type ViewMode = 'list' | 'grid' | 'small' | 'medium' | 'large' | 'extra-large';
 
-const ImageGridItem = ({ record, onOpenDialog }: { record: LibImageRecord, onOpenDialog: (state: DialogState) => void }) => (
+const ImageGridItem = ({ record, onOpenDialog, onDownload }: { record: LibImageRecord, onOpenDialog: (state: DialogState) => void, onDownload: (record: LibImageRecord) => void }) => (
     <Card className="w-full group">
         <CardContent className="p-0">
             <div className="aspect-square w-full flex items-center justify-center bg-muted rounded-t-lg overflow-hidden relative">
@@ -134,6 +135,10 @@ const ImageGridItem = ({ record, onOpenDialog }: { record: LibImageRecord, onOpe
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                    <DropdownMenuItem onSelect={() => onDownload(record)}>
+                        <Download className="mr-2 h-4 w-4" />
+                        Download
+                    </DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => onOpenDialog({ type: 'edit', record })}>
                         <Edit className="mr-2 h-4 w-4" />
                         Edit
@@ -148,7 +153,7 @@ const ImageGridItem = ({ record, onOpenDialog }: { record: LibImageRecord, onOpe
     </Card>
 );
 
-const ImageListItem = ({ record, onOpenDialog }: { record: LibImageRecord, onOpenDialog: (state: DialogState) => void }) => (
+const ImageListItem = ({ record, onOpenDialog, onDownload }: { record: LibImageRecord, onOpenDialog: (state: DialogState) => void, onDownload: (record: LibImageRecord) => void }) => (
     <div className="flex items-center w-full px-2 py-1.5 rounded-md hover:bg-muted group">
         <div className="flex items-center gap-3 flex-1 min-w-0">
             <Image src={record.libImg} alt={record.libImgName} width={40} height={40} className="object-cover rounded-md w-10 h-10"/>
@@ -171,6 +176,10 @@ const ImageListItem = ({ record, onOpenDialog }: { record: LibImageRecord, onOpe
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                    <DropdownMenuItem onSelect={() => onDownload(record)}>
+                        <Download className="mr-2 h-4 w-4" />
+                        Download
+                    </DropdownMenuItem>
                    <DropdownMenuItem onSelect={() => onOpenDialog({ type: 'edit', record })}>
                         <Edit className="mr-2 h-4 w-4" />
                         Edit
@@ -253,6 +262,44 @@ export default function ImgLibProcessor() {
         return;
       }
       setImageFile(file);
+    }
+  };
+
+  const handleDownload = async (record: LibImageRecord) => {
+    if (!record.libImg) {
+      toast({
+        variant: 'destructive',
+        title: 'Download Failed',
+        description: 'Image URL is missing.',
+      });
+      return;
+    }
+
+    try {
+      toast({
+        title: 'Download Started',
+        description: `Downloading "${record.libImgName}".`,
+      });
+
+      const response = await fetch(record.libImg);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch file: ${response.statusText}`);
+      }
+      const blob = await response.blob();
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = record.libImgName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+    } catch (error) {
+      console.error('Download error:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Download Failed',
+        description: `Could not download "${record.libImgName}".`,
+      });
     }
   };
   
@@ -479,11 +526,11 @@ export default function ImgLibProcessor() {
             {!libImagesLoading && libImages && libImages.length > 0 ? (
                  view === 'list' ? (
                     <div className="flex flex-col gap-1 border rounded-lg p-2">
-                        {libImages.map(image => <ImageListItem key={image.id} record={image} onOpenDialog={openDialog} />)}
+                        {libImages.map(image => <ImageListItem key={image.id} record={image} onOpenDialog={openDialog} onDownload={handleDownload} />)}
                     </div>
                  ) : (
                     <div className={cn("grid gap-4", viewClasses[view])}>
-                        {libImages.map(image => <ImageGridItem key={image.id} record={image} onOpenDialog={openDialog}/>)}
+                        {libImages.map(image => <ImageGridItem key={image.id} record={image} onOpenDialog={openDialog} onDownload={handleDownload} />)}
                     </div>
                  )
             ) : (
@@ -557,5 +604,7 @@ export default function ImgLibProcessor() {
   );
 }
 
+
+    
 
     

@@ -251,12 +251,12 @@ export default function ImgLibProcessor() {
     if (state?.type === 'edit') {
         setImageName(state.record.libImgName);
         setImageDesc(state.record.libImgDesc || '');
-        setImageCategory(state.record.libImgCategory || '');
+        setImageCategory(state.record.libImgCategory || 'uncategorized');
         setImageFile(null);
     } else {
         setImageName('');
         setImageDesc('');
-        setImageCategory('');
+        setImageCategory('uncategorized');
         setImageFile(null);
     }
     setDialogState(state);
@@ -369,6 +369,8 @@ export default function ImgLibProcessor() {
           downloadURL = uploadResult.downloadURL;
           storagePath = uploadResult.storagePath;
       }
+      
+      const finalImageCategory = imageCategory === 'uncategorized' ? '' : imageCategory;
 
       if (dialogState.type === 'create') {
         if (!downloadURL || !storagePath) {
@@ -378,7 +380,7 @@ export default function ImgLibProcessor() {
           userId: user.uid,
           libImgName: imageName,
           libImgDesc: imageDesc,
-          libImgCategory: imageCategory,
+          libImgCategory: finalImageCategory,
           libImg: downloadURL,
           libImgStoragePath: storagePath,
           timestamp: serverTimestamp(),
@@ -391,7 +393,7 @@ export default function ImgLibProcessor() {
         const updatedData: Partial<Omit<LibImageRecord, 'id'>> = {
           libImgName: imageName,
           libImgDesc: imageDesc,
-          libImgCategory: imageCategory,
+          libImgCategory: finalImageCategory,
         };
   
         if (downloadURL && storagePath) {
@@ -580,7 +582,7 @@ export default function ImgLibProcessor() {
                                 <SelectValue placeholder="Select a category" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="">Uncategorized</SelectItem>
+                                <SelectItem value="uncategorized">Uncategorized</SelectItem>
                                 {categoriesLoading ? <SelectItem value="loading" disabled>Loading...</SelectItem> :
                                   sortedCategories.map(cat => <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>)
                                 }

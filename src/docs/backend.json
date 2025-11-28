@@ -1,0 +1,423 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user of the file management application.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the User entity."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the user.",
+          "format": "email"
+        }
+      },
+      "required": [
+        "id",
+        "email"
+      ]
+    },
+    "FileMetadata": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "FileMetadata",
+      "type": "object",
+      "description": "Stores metadata for uploaded files.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the FileMetadata entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User who uploaded the file. (Relationship: User 1:N FileMetadata)"
+        },
+        "fileName": {
+          "type": "string",
+          "description": "Name of the file."
+        },
+        "fileSize": {
+          "type": "number",
+          "description": "Size of the file in bytes."
+        },
+        "uploadDate": {
+          "type": "string",
+          "description": "Date and time when the file was uploaded.",
+          "format": "date-time"
+        },
+        "fileType": {
+          "type": "string",
+          "description": "MIME type of the file."
+        },
+        "folderId": {
+          "type": "string",
+          "description": "Reference to the Folder where the file is stored. (Relationship: Folder 1:N FileMetadata)"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "fileName",
+        "fileSize",
+        "uploadDate",
+        "fileType",
+        "folderId"
+      ]
+    },
+    "Folder": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Folder",
+      "type": "object",
+      "description": "Represents a folder in the file storage system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Folder entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User who owns the folder. (Relationship: User 1:N Folder)"
+        },
+        "folderName": {
+          "type": "string",
+          "description": "Name of the folder."
+        },
+        "parentFolderId": {
+          "type": "string",
+          "description": "Reference to the parent Folder. Null if it's the root folder. (Self-referential relationship: Folder 1:N Folder)"
+        },
+        "creationDate": {
+          "type": "string",
+          "description": "Date and time when the folder was created.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "folderName",
+        "creationDate"
+      ]
+    },
+    "Todo": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Todo",
+      "type": "object",
+      "description": "Represents a single to-do item for a user.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Todo entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User who owns the to-do item."
+        },
+        "text": {
+          "type": "string",
+          "description": "The content of the to-do item."
+        },
+        "completed": {
+          "type": "boolean",
+          "description": "Whether the to-do item is completed or not."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Date and time when the to-do item was created.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "text",
+        "completed",
+        "createdAt"
+      ]
+    },
+    "Message": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Message",
+      "type": "object",
+      "description": "Represents a message submitted through the contact form.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Message entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the person submitting the message."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the person submitting the message.",
+          "format": "email"
+        },
+        "message": {
+          "type": "string",
+          "description": "The content of the message."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Date and time when the message was submitted.",
+          "format": "date-time"
+        },
+        "attachmentUrl": {
+          "type": "string",
+          "description": "URL of the uploaded attachment file in Firebase Storage.",
+          "format": "uri"
+        },
+        "attachmentFileName": {
+          "type": "string",
+          "description": "Name of the uploaded attachment file."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "email",
+        "message",
+        "createdAt"
+      ]
+    },
+    "NanoRecord": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "NanoRecord",
+      "type": "object",
+      "description": "Represents a record of an image transformation.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the NanoRecord entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User who performed the transformation."
+        },
+        "originalImageUrl": {
+          "type": "string",
+          "description": "URL of the original image.",
+          "format": "uri"
+        },
+        "transformedImageUrl": {
+          "type": "string",
+          "description": "URL of the transformed image.",
+          "format": "uri"
+        },
+        "originalFileName": {
+          "type": "string",
+          "description": "File name of the original image."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Date and time when the transformation was performed.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "originalImageUrl",
+        "transformedImageUrl",
+        "originalFileName",
+        "timestamp"
+      ]
+    },
+    "AvatarRecord": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "AvatarRecord",
+      "type": "object",
+      "description": "Represents a user-created avatar.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the AvatarRecord entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User who created the avatar."
+        },
+        "avatarName": {
+          "type": "string",
+          "description": "The name of the avatar."
+        },
+        "avatarPrompt": {
+          "type": "string",
+          "description": "Optional prompt used to generate the avatar."
+        },
+        "avatarDesc": {
+          "type": "string",
+          "description": "Optional description for the avatar."
+        },
+        "avatarImg": {
+          "type": "string",
+          "description": "URL of the avatar image.",
+          "format": "uri"
+        },
+        "avatarStoragePath": {
+          "type": "string",
+          "description": "The path to the image in Firebase Storage."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Date and time when the avatar was created.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "avatarName",
+        "avatarImg",
+        "avatarStoragePath",
+        "timestamp"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profiles. Path-based ownership ensures only the authenticated user can access their own profile.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user, obtained from Firebase Authentication."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/files/{fileId}",
+        "definition": {
+          "entityName": "FileMetadata",
+          "schema": {
+            "$ref": "#/backend/entities/FileMetadata"
+          },
+          "description": "Stores metadata for files uploaded by the user. Path-based ownership ensures only the authenticated user can manage their files.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user, obtained from Firebase Authentication."
+            },
+            {
+              "name": "fileId",
+              "description": "The unique identifier for the file metadata."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/folders/{folderId}",
+        "definition": {
+          "entityName": "Folder",
+          "schema": {
+            "$ref": "#/backend/entities/Folder"
+          },
+          "description": "Stores folder information. Path-based ownership ensures only the authenticated user can manage their folders.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user, obtained from Firebase Authentication."
+            },
+            {
+              "name": "folderId",
+              "description": "The unique identifier for the folder."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/todos/{todoId}",
+        "definition": {
+          "entityName": "Todo",
+          "schema": {
+            "$ref": "#/backend/entities/Todo"
+          },
+          "description": "Stores to-do items for each user. Path-based ownership ensures only the authenticated user can manage their to-do items.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user, obtained from Firebase Authentication."
+            },
+            {
+              "name": "todoId",
+              "description": "The unique identifier for the to-do item."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/nanoRecords/{recordId}",
+        "definition": {
+          "entityName": "NanoRecord",
+          "schema": {
+            "$ref": "#/backend/entities/NanoRecord"
+          },
+          "description": "Stores image transformation records for each user. Path-based ownership ensures only the authenticated user can manage their records.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user, obtained from Firebase Authentication."
+            },
+            {
+              "name": "recordId",
+              "description": "The unique identifier for the nano record."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/avatarRecords/{avatarRecordId}",
+        "definition": {
+          "entityName": "AvatarRecord",
+          "schema": {
+            "$ref": "#/backend/entities/AvatarRecord"
+          },
+          "description": "Stores avatar records for each user. Path-based ownership ensures only the authenticated user can manage their avatars.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user, obtained from Firebase Authentication."
+            },
+            {
+              "name": "avatarRecordId",
+              "description": "The unique identifier for the avatar record."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/fb-7-messages/{messageId}",
+        "definition": {
+          "entityName": "Message",
+          "schema": {
+            "$ref": "#/backend/entities/Message"
+          },
+          "description": "Stores messages from the public contact form. Open for creation by anyone.",
+          "params": [
+            {
+              "name": "messageId",
+              "description": "The unique identifier for the message."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to ensure secure and scalable file management, following the principles of Authorization Independence, Clarity of Intent, DBAC, and QAPs. User data is stored in `/users/{userId}`.  File metadata and folders are organized under the user's document using hierarchical paths (`/users/{userId}/files/{fileId}` and `/users/{userId}/folders/{folderId}`) to represent ownership, with files stored as metadata only. This design prioritizes path-based ownership and avoids the need for complex security rules involving `get()` calls. File metadata is stored independently of the actual file content (which would be stored in Firebase Storage). This ensures that file metadata operations (listing, renaming, deleting) are fast and efficient. File and folder IDs will be generated client-side using a UUID generator. The structure supports secure list operations (QAPs) by ensuring that each collection has homogeneous security needs and uses path-based ownership, eliminating the need for filtering in rules. Folder structures are self-referential, but still isolated to the user's document space. The new Todo and NanoRecord collections follow the same pattern of user ownership. The `fb-7-messages` collection is a top-level collection to store public contact form submissions."
+  }
+}

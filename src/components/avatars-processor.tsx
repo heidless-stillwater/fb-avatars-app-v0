@@ -154,7 +154,7 @@ const AvatarListItem = ({ record, onOpenDialog }: { record: AvatarRecord, onOpen
             </div>
         </div>
         <div className="hidden sm:block text-sm text-muted-foreground w-48">
-          {format(record.timestamp.toDate(), "MMM dd, yyyy")}
+          {record.timestamp ? format(record.timestamp.toDate(), "MMM dd, yyyy") : ''}
         </div>
         <div className="ml-auto">
             <DropdownMenu>
@@ -304,8 +304,10 @@ export default function AvatarsProcessor() {
         const docRef = doc(firestore, `users/${user.uid}/avatarRecords`, recordToDelete.id);
         await deleteDoc(docRef);
 
-        const imageRef = storageRef(storage, recordToDelete.avatarStoragePath);
-        await deleteObject(imageRef);
+        if (recordToDelete.avatarStoragePath) {
+            const imageRef = storageRef(storage, recordToDelete.avatarStoragePath);
+            await deleteObject(imageRef);
+        }
 
         toast({ title: 'Success', description: `Avatar "${recordToDelete.avatarName}" deleted.`});
         closeDialog();

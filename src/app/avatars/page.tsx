@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { useState } from "react";
 
 export default function AvatarsPage() {
-    const [isAvatarsOpen, setIsAvatarsOpen] = useState(false);
+    const [isAvatarsOpen, setIsAvatarsOpen] = useState(true);
     const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
     const [isImageLibraryOpen, setIsImageLibraryOpen] = useState(true);
 

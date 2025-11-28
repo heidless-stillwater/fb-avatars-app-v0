@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useMemo } from 'react';
@@ -50,7 +51,6 @@ import {
   useCollection,
   useMemoFirebase,
 } from '@/firebase';
-import { Badge } from './ui/badge';
 
 interface LibImageRecord {
   id: string;
@@ -82,7 +82,7 @@ export default function CategoryProcessor() {
     if (!libImages) return [];
     const categories = libImages
       .map(img => img.libImgCategory)
-      .filter((cat): cat is string => !!cat);
+      .filter((cat): cat is string => !!cat && cat.trim() !== '');
     return [...new Set(categories)].sort((a, b) => a.localeCompare(b));
   }, [libImages]);
 
@@ -179,17 +179,18 @@ export default function CategoryProcessor() {
                     <Loader2 className="h-8 w-8 animate-spin" />
                 </div>
             ) : allCategories.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                    {allCategories.map(category => (
-                        <Badge key={category} variant="secondary" className="text-sm pl-3 pr-1 py-1 group relative">
-                            <span className="mr-2">{category}</span>
-                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openDialog({ type: 'rename', category })}>
-                                <Edit className="h-3 w-3" />
+                <div className="border rounded-md">
+                    {allCategories.map((category, index) => (
+                        <div key={category} className={`flex items-center p-3 ${index < allCategories.length - 1 ? 'border-b' : ''}`}>
+                            <Tag className="mr-3 h-5 w-5 text-muted-foreground" />
+                            <span className="flex-1 text-sm font-medium">{category}</span>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openDialog({ type: 'rename', category })}>
+                                <Edit className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openDialog({ type: 'delete', category })}>
-                                <X className="h-3 w-3 text-destructive" />
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openDialog({ type: 'delete', category })}>
+                                <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
-                        </Badge>
+                        </div>
                     ))}
                 </div>
             ) : (
@@ -241,3 +242,4 @@ export default function CategoryProcessor() {
     </Card>
   );
 }
+

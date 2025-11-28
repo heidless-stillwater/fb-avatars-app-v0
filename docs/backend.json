@@ -271,6 +271,47 @@
         "avatarImg",
         "timestamp"
       ]
+    },
+    "AvatarImgLib": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "AvatarImgLib",
+      "type": "object",
+      "description": "Represents an image in the user's avatar image library.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the AvatarImgLib entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User who owns the image."
+        },
+        "libImgName": {
+          "type": "string",
+          "description": "The name of the library image."
+        },
+        "libImg": {
+          "type": "string",
+          "description": "URL of the library image.",
+          "format": "uri"
+        },
+        "libImgDesc": {
+          "type": "string",
+          "description": "Optional description for the library image."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Date and time when the image was added.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "libImgName",
+        "libImg",
+        "timestamp"
+      ]
     }
   },
   "auth": {
@@ -394,6 +435,26 @@
               "description": "The unique identifier for the avatar record."
             }
           ]
+        },
+        {
+          "path": "/users/{userId}/avatarImgLib/{imgLibId}",
+          "definition": {
+            "entityName": "AvatarImgLib",
+            "schema": {
+              "$ref": "#/backend/entities/AvatarImgLib"
+            },
+            "description": "Stores avatar image library records for each user. Path-based ownership ensures only the authenticated user can manage their image library.",
+            "params": [
+              {
+                "name": "userId",
+                "description": "The unique identifier for the user, obtained from Firebase Authentication."
+              },
+              {
+                "name": "imgLibId",
+                "description": "The unique identifier for the image library record."
+              }
+            ]
+          }
         }
       },
       {

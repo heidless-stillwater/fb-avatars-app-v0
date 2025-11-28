@@ -107,7 +107,7 @@ type DialogState =
 
 type ViewMode = 'list' | 'grid';
 
-const AvatarGridItem = ({ record, onOpenDialog }: { record: AvatarRecord, onOpenDialog: (state: DialogState) => void }) => (
+const AvatarGridItem = ({ record, onOpenDialog, onDownload }: { record: AvatarRecord, onOpenDialog: (state: DialogState) => void, onDownload: (record: AvatarRecord) => void }) => (
     <Card className="w-full group">
         <CardContent className="p-0">
             <div className="aspect-square w-full flex items-center justify-center bg-muted rounded-t-lg overflow-hidden relative">
@@ -134,6 +134,10 @@ const AvatarGridItem = ({ record, onOpenDialog }: { record: AvatarRecord, onOpen
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                    <DropdownMenuItem onSelect={() => onDownload(record)}>
+                        <Download className="mr-2 h-4 w-4" />
+                        Download
+                    </DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => onOpenDialog({ type: 'edit', record })}>
                         <Edit className="mr-2 h-4 w-4" />
                         Edit
@@ -148,7 +152,7 @@ const AvatarGridItem = ({ record, onOpenDialog }: { record: AvatarRecord, onOpen
     </Card>
 );
 
-const AvatarListItem = ({ record, onOpenDialog }: { record: AvatarRecord, onOpenDialog: (state: DialogState) => void }) => (
+const AvatarListItem = ({ record, onOpenDialog, onDownload }: { record: AvatarRecord, onOpenDialog: (state: DialogState) => void, onDownload: (record: AvatarRecord) => void }) => (
     <div className="flex items-center w-full px-2 py-1.5 rounded-md hover:bg-muted group">
         <div className="flex items-center gap-3 flex-1 min-w-0">
             <Image src={record.avatarImg} alt={record.avatarName} width={40} height={40} className="object-cover rounded-full w-10 h-10"/>
@@ -168,6 +172,10 @@ const AvatarListItem = ({ record, onOpenDialog }: { record: AvatarRecord, onOpen
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                   <DropdownMenuItem onSelect={() => onDownload(record)}>
+                        <Download className="mr-2 h-4 w-4" />
+                        Download
+                    </DropdownMenuItem>
                    <DropdownMenuItem onSelect={() => onOpenDialog({ type: 'edit', record })}>
                         <Edit className="mr-2 h-4 w-4" />
                         Edit
@@ -255,6 +263,44 @@ export default function AvatarsProcessor() {
     }
   };
   
+  const handleDownload = async (record: AvatarRecord) => {
+    if (!record.avatarImg) {
+      toast({
+        variant: 'destructive',
+        title: 'Download Failed',
+        description: 'Image URL is missing.',
+      });
+      return;
+    }
+
+    try {
+      toast({
+        title: 'Download Started',
+        description: `Downloading "${record.avatarName}".`,
+      });
+
+      const response = await fetch(record.avatarImg);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch file: ${response.statusText}`);
+      }
+      const blob = await response.blob();
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = record.avatarName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+    } catch (error) {
+      console.error('Download error:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Download Failed',
+        description: `Could not download "${record.avatarName}".`,
+      });
+    }
+  };
+
   const uploadImage = async (file: File | string, userId: string, fileName: string): Promise<{ downloadURL: string, storagePath: string }> => {
     const storagePath = `users/${userId}/avatarImages/${uuidv4()}-${fileName}`;
     const fileStorageRef = storageRef(storage, storagePath);
@@ -332,12 +378,13 @@ export default function AvatarsProcessor() {
     setIsSavingToLib(true);
     try {
         const fileName = `${effectivePrompt.substring(0, 20) || 'avatar'}.png`;
-        const { downloadURL } = await uploadImage(generatedAvatarUrl, user.uid, fileName);
+        const { downloadURL, storagePath } = await uploadImage(generatedAvatarUrl, user.uid, fileName);
 
         const libImgData = {
             userId: user.uid,
             libImgName: avatarName,
             libImg: downloadURL,
+            libImgStoragePath: storagePath,
             libImgDesc: avatarDesc,
             timestamp: serverTimestamp(),
         };
@@ -503,11 +550,11 @@ export default function AvatarsProcessor() {
             {!avatarsLoading && avatars && avatars.length > 0 ? (
                  view === 'grid' ? (
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                        {avatars.map(avatar => <AvatarGridItem key={avatar.id} record={avatar} onOpenDialog={openDialog}/>)}
+                        {avatars.map(avatar => <AvatarGridItem key={avatar.id} record={avatar} onOpenDialog={openDialog} onDownload={handleDownload}/>)}
                     </div>
                  ) : (
                     <div className="flex flex-col gap-1 border rounded-lg p-2">
-                        {avatars.map(avatar => <AvatarListItem key={avatar.id} record={avatar} onOpenDialog={openDialog} />)}
+                        {avatars.map(avatar => <AvatarListItem key={avatar.id} record={avatar} onOpenDialog={openDialog} onDownload={handleDownload}/>)}
                     </div>
                  )
             ) : (
@@ -630,5 +677,3 @@ export default function AvatarsProcessor() {
     </TooltipProvider>
   );
 }
-
-    

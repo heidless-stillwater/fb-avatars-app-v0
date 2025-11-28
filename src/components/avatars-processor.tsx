@@ -84,6 +84,7 @@ import {
 } from '@/firebase';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { Checkbox } from './ui/checkbox';
 
 interface AvatarRecord {
   id: string;
@@ -193,6 +194,7 @@ export default function AvatarsProcessor() {
   const [avatarDesc, setAvatarDesc] = useState('');
   const [avatarPrompt, setAvatarPrompt] = useState('');
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [generateWithAI, setGenerateWithAI] = useState(false);
 
   const [isLoadingAction, setIsLoadingAction] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
@@ -217,6 +219,7 @@ export default function AvatarsProcessor() {
         setAvatarPrompt('');
         setAvatarFile(null);
     }
+    setGenerateWithAI(false);
     setDialogState(state);
   };
 
@@ -439,6 +442,18 @@ export default function AvatarsProcessor() {
                         </div>
                         {avatarFile && <p className="text-sm text-muted-foreground">New image: {avatarFile.name}</p>}
                     </div>
+
+                    {dialogState?.type === 'edit' && (
+                        <div className="flex items-center space-x-2">
+                            <Checkbox 
+                                id="gen-with-ai" 
+                                checked={generateWithAI}
+                                onCheckedChange={(checked) => setGenerateWithAI(checked as boolean)}
+                            />
+                            <Label htmlFor="gen-with-ai">Generate Image with AI</Label>
+                        </div>
+                    )}
+
 
                     {uploadProgress !== null && <Progress value={uploadProgress} />}
                 </div>

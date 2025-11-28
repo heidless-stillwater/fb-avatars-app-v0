@@ -226,6 +226,51 @@
         "originalFileName",
         "timestamp"
       ]
+    },
+    "AvatarRecord": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "AvatarRecord",
+      "type": "object",
+      "description": "Represents a user-created avatar.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the AvatarRecord entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User who created the avatar."
+        },
+        "avatarName": {
+          "type": "string",
+          "description": "The name of the avatar."
+        },
+        "avatarPrompt": {
+          "type": "string",
+          "description": "Optional prompt used to generate the avatar."
+        },
+        "avatarDesc": {
+          "type": "string",
+          "description": "Optional description for the avatar."
+        },
+        "avatarImg": {
+          "type": "string",
+          "description": "URL of the avatar image.",
+          "format": "uri"
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Date and time when the avatar was created.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "avatarName",
+        "avatarImg",
+        "timestamp"
+      ]
     }
   },
   "auth": {
@@ -327,6 +372,26 @@
             {
               "name": "recordId",
               "description": "The unique identifier for the nano record."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/avatarRecords/{avatarRecordId}",
+        "definition": {
+          "entityName": "AvatarRecord",
+          "schema": {
+            "$ref": "#/backend/entities/AvatarRecord"
+          },
+          "description": "Stores avatar records for each user. Path-based ownership ensures only the authenticated user can manage their avatars.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user, obtained from Firebase Authentication."
+            },
+            {
+              "name": "avatarRecordId",
+              "description": "The unique identifier for the avatar record."
             }
           ]
         }

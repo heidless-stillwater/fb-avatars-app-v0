@@ -8,6 +8,7 @@
  * - /users/{userId}/folders/{folderId}: Stores folder information.
  * - /users/{userId}/todos/{todoId}: Stores todo items for the user.
  * - /users/{userId}/nanoRecords/{recordId}: Stores image transformation records.
+ * - /users/{userId}/avatarRecords/{avatarRecordId}: Stores avatar records for the user.
  * - /fb-7-messages/{messageId}: Stores messages from the contact form.
  *
  * Key Security Decisions:
@@ -149,6 +150,26 @@ service cloud.firestore {
 
       // Updates are not allowed, making records immutable after creation.
       allow update: if false;
+    }
+
+    /**
+     * @description Controls access to avatarRecords. Only the authenticated user can manage their own avatar records.
+     * @path /users/{userId}/avatarRecords/{avatarRecordId}
+     * @principle Enforces document ownership for avatar records and prevents unauthorized access. Validates userId on create and update.
+     */
+    match /users/{userId}/avatarRecords/{avatarRecordId} {
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isExistingOwner(userId);
     }
 
     /**

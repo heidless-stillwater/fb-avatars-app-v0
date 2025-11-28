@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, ListChecks, LogOut, Mail, Wand2 } from 'lucide-react';
+import { Home, ListChecks, LogOut, Mail, Wand2, UserCircle } from 'lucide-react';
 
 import {
   Sidebar,
@@ -45,6 +45,14 @@ export default function MainNav() {
               <SidebarMenuButton isActive={pathname === '/'} tooltip="Home">
                 <Home />
                 <span>Home</span>
+              </SidebarMenuButton>
+            </Link>
+          </SidebarMenuItem>
+           <SidebarMenuItem>
+            <Link href="/avatars">
+              <SidebarMenuButton isActive={pathname === '/avatars'} tooltip="Avatars">
+                <UserCircle />
+                <span>Avatars</span>
               </SidebarMenuButton>
             </Link>
           </SidebarMenuItem>

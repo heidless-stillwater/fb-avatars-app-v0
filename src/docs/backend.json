@@ -258,10 +258,6 @@
           "description": "URL of the avatar image.",
           "format": "uri"
         },
-        "avatarStoragePath": {
-          "type": "string",
-          "description": "The path to the image in Firebase Storage."
-        },
         "timestamp": {
           "type": "string",
           "description": "Date and time when the avatar was created.",
@@ -273,7 +269,52 @@
         "userId",
         "avatarName",
         "avatarImg",
-        "avatarStoragePath",
+        "timestamp"
+      ]
+    },
+    "AvatarImgLib": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "AvatarImgLib",
+      "type": "object",
+      "description": "Represents an image in the user's avatar image library.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the AvatarImgLib entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User who owns the image."
+        },
+        "libImgName": {
+          "type": "string",
+          "description": "The name of the library image."
+        },
+        "libImg": {
+          "type": "string",
+          "description": "URL of the library image.",
+          "format": "uri"
+        },
+        "libImgDesc": {
+          "type": "string",
+          "description": "Optional description for the library image."
+        },
+        "libImgStoragePath": {
+          "type": "string",
+          "description": "The path to the image in Firebase Storage."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Date and time when the image was added.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "libImgName",
+        "libImg",
+        "libImgStoragePath",
         "timestamp"
       ]
     }
@@ -399,6 +440,26 @@
               "description": "The unique identifier for the avatar record."
             }
           ]
+        },
+        {
+          "path": "/users/{userId}/avatarImgLib/{imgLibId}",
+          "definition": {
+            "entityName": "AvatarImgLib",
+            "schema": {
+              "$ref": "#/backend/entities/AvatarImgLib"
+            },
+            "description": "Stores avatar image library records for each user. Path-based ownership ensures only the authenticated user can manage their image library.",
+            "params": [
+              {
+                "name": "userId",
+                "description": "The unique identifier for the user, obtained from Firebase Authentication."
+              },
+              {
+                "name": "imgLibId",
+                "description": "The unique identifier for the image library record."
+              }
+            ]
+          }
         }
       },
       {
@@ -421,3 +482,4 @@
     "reasoning": "The Firestore structure is designed to ensure secure and scalable file management, following the principles of Authorization Independence, Clarity of Intent, DBAC, and QAPs. User data is stored in `/users/{userId}`.  File metadata and folders are organized under the user's document using hierarchical paths (`/users/{userId}/files/{fileId}` and `/users/{userId}/folders/{folderId}`) to represent ownership, with files stored as metadata only. This design prioritizes path-based ownership and avoids the need for complex security rules involving `get()` calls. File metadata is stored independently of the actual file content (which would be stored in Firebase Storage). This ensures that file metadata operations (listing, renaming, deleting) are fast and efficient. File and folder IDs will be generated client-side using a UUID generator. The structure supports secure list operations (QAPs) by ensuring that each collection has homogeneous security needs and uses path-based ownership, eliminating the need for filtering in rules. Folder structures are self-referential, but still isolated to the user's document space. The new Todo and NanoRecord collections follow the same pattern of user ownership. The `fb-7-messages` collection is a top-level collection to store public contact form submissions."
   }
 }
+

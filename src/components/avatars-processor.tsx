@@ -246,6 +246,10 @@ export default function AvatarsProcessor() {
     return avatarPrompt.trim() === '' ? avatarName : avatarPrompt;
   }, [avatarPrompt, avatarName]);
 
+  const transformPrompt = useMemo(() => {
+    return `${avatarName} ${avatarPrompt}`.trim();
+  }, [avatarName, avatarPrompt]);
+
   const imagePreviewUrl = useMemo(() => {
     if (generatedAvatarUrl) return generatedAvatarUrl;
     if (avatarFile) return URL.createObjectURL(avatarFile);
@@ -417,7 +421,6 @@ export default function AvatarsProcessor() {
       toast({ variant: 'destructive', title: 'No Image', description: 'Please provide an image to transform.'});
       return;
     }
-    const transformPrompt = `${avatarName} ${avatarPrompt}`.trim();
     if (!transformPrompt) {
         toast({ variant: 'destructive', title: 'Prompt is empty', description: 'Please enter a name or prompt to transform the image.'});
         return;
@@ -714,16 +717,23 @@ export default function AvatarsProcessor() {
                                  </Button>
                                </>
                             ) : (
-                              <>
-                                <Button id="tform-but" onClick={handleTransformWithAI} disabled={isGeneratingAI || isLoadingAction || !imagePreviewUrl} className="flex-1">
-                                  {isGeneratingAI ? <Loader2 className="animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                                  Transform Using Prompt (AI)
-                                </Button>
+                              <div className="flex w-full gap-2">
+                                <div className='flex-1 space-y-1'>
+                                    <Button id="tform-but" onClick={handleTransformWithAI} disabled={isGeneratingAI || isLoadingAction || !imagePreviewUrl} className="w-full">
+                                    {isGeneratingAI ? <Loader2 className="animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                                    Transform Using Prompt (AI)
+                                    </Button>
+                                    {transformPrompt && (
+                                        <p className="text-xs text-muted-foreground text-center italic truncate" title={transformPrompt}>
+                                            Using: "{transformPrompt}"
+                                        </p>
+                                    )}
+                                </div>
                                 <Button id="save-prev-image" onClick={handleSaveToLibrary} disabled={isSavingToLib || isLoadingAction || !imagePreviewUrl || !avatarName.trim()} variant="secondary" className="flex-1">
                                     {isSavingToLib ? <Loader2 className="animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                                     Save Preview Image to Library
                                 </Button>
-                              </>
+                              </div>
                             )}
                         </div>
 
@@ -813,5 +823,6 @@ export default function AvatarsProcessor() {
   );
 }
 
+    
     
     

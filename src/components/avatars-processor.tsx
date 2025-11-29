@@ -38,6 +38,7 @@ import {
   Save,
   LayoutGrid,
   Library,
+  Sparkles,
 } from 'lucide-react';
 
 import { useToast } from '@/hooks/use-toast';
@@ -90,6 +91,8 @@ import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { Checkbox } from './ui/checkbox';
 import { generateAvatar } from '@/ai/flows/generate-avatar-flow';
+import { transformImage } from '@/ai/flows/transform-image-flow';
+
 
 interface AvatarRecord {
   id: string;
@@ -409,6 +412,33 @@ export default function AvatarsProcessor() {
     }
   };
 
+  const handleTransformWithAI = async () => {
+    if (!imagePreviewUrl) {
+      toast({ variant: 'destructive', title: 'No Image', description: 'Please provide an image to transform.'});
+      return;
+    }
+    if (!effectivePrompt) {
+        toast({ variant: 'destructive', title: 'Prompt is empty', description: 'Please enter a prompt to transform the image.'});
+        return;
+    }
+    setIsGeneratingAI(true);
+    try {
+      const result = await transformImage({
+        photoDataUri: imagePreviewUrl,
+        prompt: effectivePrompt,
+        testMode: testRun,
+      });
+      setGeneratedAvatarUrl(result.transformedImageUrl);
+      setAvatarFile(null);
+      toast({ title: 'Success', description: 'Image transformed.' });
+    } catch(err) {
+        console.error(err);
+        toast({ variant: 'destructive', title: 'AI Transform Failed', description: 'Could not transform the image.'});
+    } finally {
+        setIsGeneratingAI(false);
+    }
+  };
+
   const handleSaveToLibrary = async () => {
     if (!user || !imagePreviewUrl || !avatarName.trim()) {
         toast({ variant: "destructive", title: "Missing Information", description: "Avatar name and an image are required." });
@@ -664,7 +694,7 @@ export default function AvatarsProcessor() {
                                     id="test" 
                                     checked={testRun}
                                     onCheckedChange={(checked) => setTestRun(checked as boolean)}
-                                    disabled={isLoadingAction || !generateWithAI}
+                                    disabled={isLoadingAction}
                                 />
                                 <Label htmlFor="test">Test Run</Label>
                             </div>
@@ -683,10 +713,16 @@ export default function AvatarsProcessor() {
                                  </Button>
                                </>
                             ) : (
-                                <Button id="save-prev-image" onClick={handleSaveToLibrary} disabled={isSavingToLib || isLoadingAction || !imagePreviewUrl || !avatarName.trim()} variant="secondary" className="w-full">
+                              <>
+                                <Button id="tform-but" onClick={handleTransformWithAI} disabled={isGeneratingAI || isLoadingAction || !effectivePrompt.trim() || !imagePreviewUrl} className="flex-1">
+                                  {isGeneratingAI ? <Loader2 className="animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                                  Transform Using Prompt (AI)
+                                </Button>
+                                <Button id="save-prev-image" onClick={handleSaveToLibrary} disabled={isSavingToLib || isLoadingAction || !imagePreviewUrl || !avatarName.trim()} variant="secondary" className="flex-1">
                                     {isSavingToLib ? <Loader2 className="animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                                     Save Preview Image to Library
                                 </Button>
+                              </>
                             )}
                         </div>
 
@@ -775,3 +811,5 @@ export default function AvatarsProcessor() {
     </TooltipProvider>
   );
 }
+
+    

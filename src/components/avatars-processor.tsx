@@ -668,8 +668,10 @@ export default function AvatarsProcessor() {
                 <DialogHeader>
                     <DialogTitle>{dialogState?.type === 'create' ? 'Create New Avatar' : 'Edit Avatar'}</DialogTitle>
                 </DialogHeader>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
-                    <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 py-4">
+                    
+                    {/* Left Column: Form Fields */}
+                    <div className="flex flex-col gap-4">
                         <div className="space-y-2">
                             <Label htmlFor="avatarName">Avatar Name</Label>
                             <Input id="avatarName" value={avatarName} onChange={e => setAvatarName(e.target.value)} disabled={isLoadingAction} />
@@ -704,9 +706,9 @@ export default function AvatarsProcessor() {
                             </div>
                         </div>
 
-                        <div className="flex gap-2">
+                        <div className="flex flex-col gap-4">
                             {generateWithAI ? (
-                               <>
+                               <div className='flex flex-col sm:flex-row gap-2'>
                                 <Button id="gen-but" onClick={handleGenWithAI} disabled={isGeneratingAI || isLoadingAction || !effectivePrompt.trim()} className="flex-1">
                                      {isGeneratingAI ? <Loader2 className="animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
                                      Gen with AI
@@ -715,9 +717,9 @@ export default function AvatarsProcessor() {
                                      {isSavingToLib ? <Loader2 className="animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                                      Save Image to Library
                                  </Button>
-                               </>
+                               </div>
                             ) : (
-                              <div className="flex w-full gap-2">
+                              <div className='flex flex-col gap-4'>
                                 <div className='flex-1 space-y-1'>
                                     <Button id="tform-but" onClick={handleTransformWithAI} disabled={isGeneratingAI || isLoadingAction || !imagePreviewUrl} className="w-full">
                                     {isGeneratingAI ? <Loader2 className="animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
@@ -771,12 +773,14 @@ export default function AvatarsProcessor() {
                                         </PopoverContent>
                                     </Popover>
                                 </div>
+                                {avatarFile && <p className="text-sm text-muted-foreground mt-1">New image: {avatarFile.name}</p>}
                              </div>
                         )}
-                        {avatarFile && !generateWithAI && <p className="text-sm text-muted-foreground">New image: {avatarFile.name}</p>}
+                        
                     </div>
 
-                    <div className="space-y-2">
+                    {/* Right Column: Image Preview */}
+                    <div className="flex flex-col gap-2">
                         <Label>Image Preview</Label>
                         <div className="relative w-full aspect-square bg-muted rounded-md flex items-center justify-center overflow-hidden">
                             { imagePreviewUrl ?
@@ -784,6 +788,7 @@ export default function AvatarsProcessor() {
                                     src={imagePreviewUrl}
                                     alt="Avatar preview" 
                                     fill 
+                                    sizes="(max-width: 768px) 90vw, 40vw"
                                     className="object-cover"
                                 />
                                 : <UserCircle className="w-24 h-24 text-muted-foreground" />

@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -34,7 +35,7 @@ export default function MainNav() {
         <SidebarRail />
       <SidebarHeader>
         <div className="flex items-center gap-2">
-            <SidebarTrigger />
+            <SidebarTrigger className="md:hidden"/>
             <h1 className="font-semibold text-lg">My App</h1>
         </div>
       </SidebarHeader>

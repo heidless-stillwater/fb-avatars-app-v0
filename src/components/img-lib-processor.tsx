@@ -100,8 +100,6 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { cn } from '@/lib/utils';
 import { Badge } from './ui/badge';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
-import { ChevronsUpDown } from 'lucide-react';
 
 interface LibImageRecord {
   id: string;
@@ -145,7 +143,7 @@ const ImageGridItem = ({ record, onOpenDialog, onDownload }: { record: LibImageR
             <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm truncate" title={record.libImgName}>{record.libImgName}</p>
                 <div className="flex items-center gap-1.5 mt-1">
-                  {record.libImgCategory && <Badge variant="secondary" className='truncate'>{record.libImgCategory}</Badge>}
+                  {record.libImgCategory && record.libImgCategory !== 'uncategorized' && <Badge variant="secondary" className='truncate'>{record.libImgCategory}</Badge>}
                 </div>
             </div>
             <DropdownMenu>
@@ -183,7 +181,7 @@ const ImageListItem = ({ record, onOpenDialog, onDownload }: { record: LibImageR
             </div>
         </div>
          <div className="hidden md:block w-40">
-            {record.libImgCategory && <Badge variant="outline">{record.libImgCategory}</Badge>}
+            {record.libImgCategory && record.libImgCategory !== 'uncategorized' && <Badge variant="outline">{record.libImgCategory}</Badge>}
         </div>
         <div className="hidden sm:block text-sm text-muted-foreground w-48">
           {record.timestamp ? format(record.timestamp.toDate(), "MMM dd, yyyy") : ''}
@@ -531,7 +529,7 @@ export default function ImgLibProcessor() {
           storagePath = uploadResult.storagePath;
       }
       
-      const finalImageCategory = imageCategory === 'uncategorized' ? '' : imageCategory;
+      const finalImageCategory = imageCategory;
 
       if (dialogState.type === 'create') {
         if (!downloadURL || !storagePath) {
@@ -635,7 +633,7 @@ export default function ImgLibProcessor() {
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                 <div className='flex gap-2 items-center'>
                   <DropdownMenu>
                       <Tooltip>
@@ -685,7 +683,7 @@ export default function ImgLibProcessor() {
                         <TooltipContent><p>Restore Library from JSON</p></TooltipContent>
                     </Tooltip>
                 </div>
-                <div className='flex gap-2'>
+                <div className='flex gap-2 self-end sm:self-center'>
                     <DropdownMenu>
                         <Tooltip>
                             <TooltipTrigger asChild>
@@ -843,5 +841,3 @@ export default function ImgLibProcessor() {
     </TooltipProvider>
   );
 }
-
-    

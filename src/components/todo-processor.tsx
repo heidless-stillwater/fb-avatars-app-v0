@@ -1,8 +1,9 @@
+
 'use client';
 
 import { useState } from 'react';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, addDoc, deleteDoc, doc, serverTimestamp, query } from 'firebase/firestore';
+import { collection, addDoc, deleteDoc, doc, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -28,7 +29,7 @@ export default function TodoProcessor() {
 
     const todosQuery = useMemoFirebase(() => {
         if (!user) return null;
-        return query(collection(firestore, `users/${user.uid}/todos`));
+        return query(collection(firestore, `users/${user.uid}/todos`), orderBy('createdAt', 'desc'));
     }, [firestore, user]);
 
     const { data: todos, isLoading: todosLoading } = useCollection<Todo>(todosQuery);
@@ -95,58 +96,52 @@ export default function TodoProcessor() {
     };
 
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Your Todos</CardTitle>
-                <CardDescription>Add, manage, and complete your tasks.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <div className="flex w-full max-w-sm items-center space-x-2 mb-4">
-                    <Input
-                        type="text"
-                        placeholder="e.g. Learn Firebase"
-                        value={newTodo}
-                        onChange={(e) => setNewTodo(e.target.value)}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                                handleAddTodo();
-                            }
-                        }}
-                    />
-                    <Button onClick={handleAddTodo} disabled={!newTodo.trim()}>
-                        <Plus className="mr-2 h-4 w-4" /> Add
-                    </Button>
+        <>
+            <div className="flex w-full items-center space-x-2 mb-4">
+                <Input
+                    type="text"
+                    placeholder="e.g. Learn Firebase"
+                    value={newTodo}
+                    onChange={(e) => setNewTodo(e.target.value)}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                            handleAddTodo();
+                        }
+                    }}
+                />
+                <Button onClick={handleAddTodo} disabled={!newTodo.trim()}>
+                    <Plus className="mr-2 h-4 w-4" /> Add
+                </Button>
+            </div>
+
+            {todosLoading && (
+                <div className="flex items-center justify-center h-48">
+                    <Loader2 className="h-8 w-8 animate-spin" />
                 </div>
+            )}
 
-                {todosLoading && (
-                    <div className="flex items-center justify-center h-48">
-                        <Loader2 className="h-8 w-8 animate-spin" />
+            {!todosLoading && todos && todos.length > 0 ? (
+                <ul className="space-y-2">
+                    {todos.map((todo) => (
+                        <li key={todo.id} className="flex items-center justify-between rounded-md bg-muted p-3">
+                            <span className="truncate pr-4">{todo.text}</span>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDeleteTodo(todo.id)}
+                            >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                        </li>
+                    ))}
+                </ul>
+            ) : (
+                !todosLoading && (
+                    <div className="flex items-center justify-center h-48 rounded-md border border-dashed text-sm text-muted-foreground">
+                        <p>No todos yet. Add one to get started!</p>
                     </div>
-                )}
-
-                {!todosLoading && todos && todos.length > 0 ? (
-                    <ul className="space-y-2">
-                        {todos.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0)).map((todo) => (
-                            <li key={todo.id} className="flex items-center justify-between rounded-md bg-muted p-3">
-                                <span>{todo.text}</span>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => handleDeleteTodo(todo.id)}
-                                >
-                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                </Button>
-                            </li>
-                        ))}
-                    </ul>
-                ) : (
-                    !todosLoading && (
-                        <div className="flex items-center justify-center h-48 rounded-md border border-dashed text-sm text-muted-foreground">
-                            <p>No todos yet. Add one to get started!</p>
-                        </div>
-                    )
-                )}
-            </CardContent>
-        </Card>
+                )
+            )}
+        </>
     );
 }

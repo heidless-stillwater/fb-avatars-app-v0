@@ -1,7 +1,7 @@
 
 'use client';
 
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import AvatarsProcessor from "@/components/avatars-processor";
 import ImgLibProcessor from "@/components/img-lib-processor";
 import CategoryProcessor from "@/components/category-processor";
@@ -22,7 +22,7 @@ export default function AvatarsPage() {
 
     return (
         <div className="p-4 sm:p-6 md:p-8 h-full space-y-8">
-            <Collapsible open={isAvatarsOpen} onOpenChange={setIsAvatarsOpen}>
+            <Collapsible open={isAvatarsOpen} onOpenChange={setIsAvatarsOpen} className="space-y-4">
                 <div className="flex items-center justify-between rounded-lg border p-4">
                     <div>
                         <h2 className="text-xl font-semibold">Avatars</h2>
@@ -35,7 +35,7 @@ export default function AvatarsPage() {
                         </Button>
                     </CollapsibleTrigger>
                 </div>
-                <CollapsibleContent className="space-y-4 pt-4">
+                <CollapsibleContent>
                      <Card>
                         <CardContent className="pt-6">
                             <AvatarsProcessor />
@@ -43,8 +43,10 @@ export default function AvatarsPage() {
                     </Card>
                 </CollapsibleContent>
             </Collapsible>
+            
             <Separator />
-            <Collapsible open={isCategoryManagerOpen} onOpenChange={setIsCategoryManagerOpen}>
+
+            <Collapsible open={isCategoryManagerOpen} onOpenChange={setIsCategoryManagerOpen} className="space-y-4">
                 <div className="flex items-center justify-between">
                     <h2 className="text-xl font-semibold">Category Manager</h2>
                     <CollapsibleTrigger asChild>
@@ -54,12 +56,14 @@ export default function AvatarsPage() {
                         </Button>
                     </CollapsibleTrigger>
                 </div>
-                <CollapsibleContent className="space-y-4">
+                <CollapsibleContent>
                     <CategoryProcessor />
                 </CollapsibleContent>
             </Collapsible>
+            
             <Separator />
-             <Collapsible open={isImageLibraryOpen} onOpenChange={setIsImageLibraryOpen}>
+
+             <Collapsible open={isImageLibraryOpen} onOpenChange={setIsImageLibraryOpen} className="space-y-4">
                 <div className="flex items-center justify-between">
                     <h2 className="text-xl font-semibold">Image Library</h2>
                     <CollapsibleTrigger asChild>
@@ -69,7 +73,7 @@ export default function AvatarsPage() {
                         </Button>
                     </CollapsibleTrigger>
                 </div>
-                <CollapsibleContent className="space-y-4">
+                <CollapsibleContent>
                     <ImgLibProcessor />
                 </CollapsibleContent>
             </Collapsible>

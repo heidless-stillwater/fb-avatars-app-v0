@@ -190,7 +190,7 @@ export default function CategoryProcessor() {
         const snapshot = await getDocs(imagesQuery);
         
         snapshot.docs.forEach(docToUpdate => {
-            batch.update(docToUpdate.ref, { libImgCategory: '' });
+            batch.update(docToUpdate.ref, { libImgCategory: 'uncategorized' });
         });
         
         await batch.commit();
@@ -206,14 +206,13 @@ export default function CategoryProcessor() {
 
   return (
     <Card>
-        <CardHeader className='flex-row items-start justify-between'>
+        <CardHeader className='flex-row items-center justify-between'>
           <div>
-            <CardTitle>Category Manager</CardTitle>
-            <CardDescription>Create, rename, or remove categories across your entire image library.</CardDescription>
+            <CardTitle className="text-base font-semibold">Category Manager</CardTitle>
           </div>
-          <Button onClick={() => openDialog({ type: 'create' })}>
+          <Button onClick={() => openDialog({ type: 'create' })} size="sm">
             <Plus className="mr-2 h-4 w-4" />
-            New Category
+            New
           </Button>
         </CardHeader>
         <CardContent>
@@ -224,13 +223,13 @@ export default function CategoryProcessor() {
             ) : sortedCategories.length > 0 ? (
                 <div className="border rounded-md">
                     {sortedCategories.map((category, index) => (
-                        <div key={category.id} className={`flex items-center p-3 ${index < sortedCategories.length - 1 ? 'border-b' : ''}`}>
-                            <Tag className="mr-3 h-5 w-5 text-muted-foreground" />
-                            <span className="flex-1 text-sm font-medium">{category.name}</span>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openDialog({ type: 'rename', category })}>
+                        <div key={category.id} className={`flex items-center p-2 ${index < sortedCategories.length - 1 ? 'border-b' : ''}`}>
+                            <Tag className="mr-2 h-4 w-4 text-muted-foreground" />
+                            <span className="flex-1 text-sm font-medium truncate">{category.name}</span>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openDialog({ type: 'rename', category })}>
                                 <Edit className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openDialog({ type: 'delete', category })}>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openDialog({ type: 'delete', category })}>
                                 <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
                         </div>
@@ -239,7 +238,7 @@ export default function CategoryProcessor() {
             ) : (
                 <div className="flex flex-col items-center justify-center h-24 rounded-md border border-dashed text-sm text-muted-foreground">
                     <Tag className="h-8 w-8 mb-2" />
-                    <p>No categories found. Create one to get started!</p>
+                    <p>No categories found.</p>
                 </div>
             )}
         </CardContent>
@@ -290,5 +289,3 @@ export default function CategoryProcessor() {
     </Card>
   );
 }
-
-    

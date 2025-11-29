@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
@@ -343,8 +344,8 @@ export default function NanoProcessor() {
             </div>
           </div>
         </CardContent>
-        <CardFooter className="flex flex-col items-start gap-4">
-           <Button onClick={handleTransform} disabled={isLoading || !originalImage || !prompt.trim()}>
+        <CardFooter>
+           <Button onClick={handleTransform} disabled={isLoading || !originalImage || !prompt.trim()} className="w-full sm:w-auto">
             {isLoading ? (
               <Loader2 className="animate-spin" />
             ) : (
@@ -390,12 +391,12 @@ export default function NanoProcessor() {
             )}
           </div>
         </CardContent>
-        <CardFooter className="flex justify-between">
-          <Button disabled={!transformedImage || isLoading}>
+        <CardFooter className="flex flex-col sm:flex-row justify-between gap-4">
+          <Button disabled={!transformedImage || isLoading} className="w-full sm:w-auto">
             <Download className="mr-2 h-4 w-4" />
             Save Image
           </Button>
-          <Button variant="outline" disabled={isLoading}>
+          <Button variant="outline" disabled={isLoading} className="w-full sm:w-auto">
             <History className="mr-2 h-4 w-4" />
             View History
           </Button>

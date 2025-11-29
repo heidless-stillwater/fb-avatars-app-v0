@@ -561,11 +561,11 @@ export default function AvatarsProcessor() {
   return (
     <TooltipProvider>
         <div className="space-y-4">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                 <div>
                      {/* Potentially add search or filters here later */}
                 </div>
-                <div className='flex gap-2'>
+                <div className='flex gap-2 self-end sm:self-center'>
                     <DropdownMenu>
                         <Tooltip>
                             <TooltipTrigger asChild>
@@ -775,5 +775,3 @@ export default function AvatarsProcessor() {
     </TooltipProvider>
   );
 }
-
-    

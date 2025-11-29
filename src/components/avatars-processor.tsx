@@ -417,15 +417,16 @@ export default function AvatarsProcessor() {
       toast({ variant: 'destructive', title: 'No Image', description: 'Please provide an image to transform.'});
       return;
     }
-    if (!effectivePrompt) {
-        toast({ variant: 'destructive', title: 'Prompt is empty', description: 'Please enter a prompt to transform the image.'});
+    const transformPrompt = `${avatarName} ${avatarPrompt}`.trim();
+    if (!transformPrompt) {
+        toast({ variant: 'destructive', title: 'Prompt is empty', description: 'Please enter a name or prompt to transform the image.'});
         return;
     }
     setIsGeneratingAI(true);
     try {
       const result = await transformImage({
         photoDataUri: imagePreviewUrl,
-        prompt: effectivePrompt,
+        prompt: transformPrompt,
         testMode: testRun,
       });
       setGeneratedAvatarUrl(result.transformedImageUrl);
@@ -714,7 +715,7 @@ export default function AvatarsProcessor() {
                                </>
                             ) : (
                               <>
-                                <Button id="tform-but" onClick={handleTransformWithAI} disabled={isGeneratingAI || isLoadingAction || !effectivePrompt.trim() || !imagePreviewUrl} className="flex-1">
+                                <Button id="tform-but" onClick={handleTransformWithAI} disabled={isGeneratingAI || isLoadingAction || !imagePreviewUrl} className="flex-1">
                                   {isGeneratingAI ? <Loader2 className="animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
                                   Transform Using Prompt (AI)
                                 </Button>
@@ -812,4 +813,5 @@ export default function AvatarsProcessor() {
   );
 }
 
+    
     

@@ -417,6 +417,7 @@ export default function ImgLibProcessor() {
   const [view, setView] = useState<ViewMode>('small');
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isCategoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
 
   const [imageName, setImageName] = useState('');
   const [imageDesc, setImageDesc] = useState('');
@@ -1197,8 +1198,14 @@ export default function ImgLibProcessor() {
                             <div className="space-y-2">
                                 <Label htmlFor="imageCategory">Category</Label>
                                 <div className="flex items-center gap-2">
-                                    <Select value={imageCategory} onValueChange={setImageCategory} disabled={isLoadingAction}>
-                                        <SelectTrigger id="imageCategory">
+                                    <Select 
+                                        open={isCategoryDropdownOpen}
+                                        onOpenChange={setCategoryDropdownOpen}
+                                        value={imageCategory} 
+                                        onValueChange={setImageCategory} 
+                                        disabled={isLoadingAction}
+                                    >
+                                        <SelectTrigger id="imageCategory" onClick={() => setCategoryDropdownOpen(prev => !prev)}>
                                             <SelectValue placeholder="Select a category" />
                                         </SelectTrigger>
                                         <SelectContent>

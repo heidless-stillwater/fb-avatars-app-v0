@@ -105,6 +105,7 @@ import {
   useStorage,
   useCollection,
   useMemoFirebase,
+  useFirebase,
 } from '@/firebase';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { cn } from '@/lib/utils';
@@ -157,7 +158,7 @@ const dataUrlFromImageUrl = async (imageUrl: string): Promise<string> => {
 };
 
 const BulkCategorizeDialog = ({ onOpenChange, imagesToCategorize, allCategories }: { onOpenChange: (open: boolean) => void, imagesToCategorize: LibImageRecord[], allCategories: CategoryRecord[] }) => {
-    const { user, firestore } = useUser();
+    const { user, firestore } = useFirebase();
     const { toast } = useToast();
     const [currentIndex, setCurrentIndex] = useState(0);
     const [currentCategory, setCurrentCategory] = useState('');
@@ -197,7 +198,7 @@ const BulkCategorizeDialog = ({ onOpenChange, imagesToCategorize, allCategories 
     }
 
     const proceedToSave = async () => {
-        if (!currentImage || !user) return;
+        if (!currentImage || !user || !firestore) return;
         
         setIsSaving(true);
         try {

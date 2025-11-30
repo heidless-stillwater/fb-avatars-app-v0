@@ -16,6 +16,7 @@ import {
   where,
   writeBatch,
   getDocs,
+  deleteField,
 } from 'firebase/firestore';
 import {
   ref as storageRef,
@@ -497,11 +498,13 @@ export default function ImgLibProcessor() {
 
         if (snapshot.empty) {
             toast({ title: 'No Images Found', description: 'There are no images in the library to update.'});
+            setIsLoadingAction(false);
+            closeDialog();
             return;
         }
         
-        snapshot.docs.forEach(doc => {
-            batch.update(doc.ref, { libImgCategory: 'uncategorized' });
+        snapshot.docs.forEach(docToUpdate => {
+            batch.update(docToUpdate.ref, { libImgCategory: deleteField() });
         });
 
         await batch.commit();
@@ -956,7 +959,7 @@ export default function ImgLibProcessor() {
                 <AlertDialogHeader>
                     <AlertDialogTitle>Are you sure you want to clear all categories?</AlertDialogTitle>
                     <AlertDialogDescription>
-                        This action will reset the category for every image in your library to 'Uncategorized'. This cannot be undone.
+                        This action will remove the category field for every image in your library. This cannot be undone.
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -972,3 +975,5 @@ export default function ImgLibProcessor() {
     </TooltipProvider>
   );
 }
+
+    

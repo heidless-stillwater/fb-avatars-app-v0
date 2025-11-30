@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "59892556930",
+    "project_id": "heidless-firebase-3",
+    "storage_bucket": "heidless-firebase-3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:59892556930:android:9bbe6fb2a22b50e389409b",
+        "android_client_info": {
+          "package_name": "com.heidless.avatars"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDPYM3sKLsjxppspeJ1yhnmOdJmDVYJQ1o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

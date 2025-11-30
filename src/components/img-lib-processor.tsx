@@ -465,6 +465,12 @@ export default function ImgLibProcessor() {
     return allLibImages?.filter(img => selectedIds.has(img.id)) || [];
   }, [selectedIds, allLibImages]);
 
+  const imagePreviewUrl = useMemo(() => {
+    if (imageFile) return URL.createObjectURL(imageFile);
+    if (dialogState?.type === 'edit') return dialogState.record.libImg;
+    return null;
+  }, [imageFile, dialogState]);
+
   const handleSelectionChange = (id: string, checked: boolean) => {
     setSelectedIds(prev => {
         const newSet = new Set(prev);
@@ -1160,7 +1166,7 @@ export default function ImgLibProcessor() {
         </div>
 
         <Dialog open={!!dialogState && (dialogState.type === 'create' || dialogState.type === 'edit' || dialogState.type === 'restore')} onOpenChange={(isOpen) => !isOpen && closeDialog()}>
-            <DialogContent className="sm:max-w-lg">
+            <DialogContent className="sm:max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>
                         {dialogState?.type === 'create' ? 'Add New Image' : 
@@ -1182,55 +1188,72 @@ export default function ImgLibProcessor() {
                         {restoreFile && <p className="text-sm text-muted-foreground">Selected: {restoreFile.name}</p>}
                     </div>
                 ) : (
-                    <div className="space-y-4 py-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="imageName">Image Name</Label>
-                            <Input id="imageName" value={imageName} onChange={e => setImageName(e.target.value)} disabled={isLoadingAction} />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="imageCategory">Category</Label>
-                            <div className="flex items-center gap-2">
-                                <Select value={imageCategory} onValueChange={setImageCategory} disabled={isLoadingAction}>
-                                    <SelectTrigger id="imageCategory">
-                                        <SelectValue placeholder="Select a category" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="uncategorized">Uncategorized</SelectItem>
-                                        {categoriesLoading ? <SelectItem value="loading" disabled>Loading...</SelectItem> :
-                                        sortedCategories.map(cat => <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>)
-                                        }
-                                    </SelectContent>
-                                </Select>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            size="icon"
-                                            onClick={handleSuggestCategory}
-                                            disabled={isCategorizing || isLoadingAction || (!imageFile && dialogState?.type !== 'edit')}
-                                        >
-                                            {isCategorizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
-                                        </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                        <p>Suggest Category (AI)</p>
-                                    </TooltipContent>
-                                </Tooltip>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 max-h-[80vh] overflow-y-auto p-1">
+                        <div className="flex flex-col gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="imageName">Image Name</Label>
+                                <Input id="imageName" value={imageName} onChange={e => setImageName(e.target.value)} disabled={isLoadingAction} />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="imageCategory">Category</Label>
+                                <div className="flex items-center gap-2">
+                                    <Select value={imageCategory} onValueChange={setImageCategory} disabled={isLoadingAction}>
+                                        <SelectTrigger id="imageCategory">
+                                            <SelectValue placeholder="Select a category" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="uncategorized">Uncategorized</SelectItem>
+                                            {categoriesLoading ? <SelectItem value="loading" disabled>Loading...</SelectItem> :
+                                            sortedCategories.map(cat => <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>)
+                                            }
+                                        </SelectContent>
+                                    </Select>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="icon"
+                                                onClick={handleSuggestCategory}
+                                                disabled={isCategorizing || isLoadingAction || (!imageFile && dialogState?.type !== 'edit')}
+                                            >
+                                                {isCategorizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p>Suggest Category (AI)</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="imageDesc">Description</Label>
+                                <Textarea id="imageDesc" value={imageDesc} onChange={e => setImageDesc(e.target.value)} placeholder="A brief description (optional)" disabled={isLoadingAction} />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="imageFile">
+                                    {dialogState?.type === 'create' ? 'Image File' : 'Replace Image (Optional)'}
+                                </Label>
+                                <Input id="imageFile" type="file" accept="image/*" ref={fileInputRef} onChange={handleFileChange} disabled={isLoadingAction} />
+                                {imageFile && <p className="text-sm text-muted-foreground mt-1">New image: {imageFile.name}</p>}
+                                {uploadProgress !== null && <Progress value={uploadProgress} />}
                             </div>
                         </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="imageDesc">Description</Label>
-                            <Textarea id="imageDesc" value={imageDesc} onChange={e => setImageDesc(e.target.value)} placeholder="A brief description (optional)" disabled={isLoadingAction} />
+                        <div className="flex flex-col gap-2">
+                            <Label>Image Preview</Label>
+                             <div className="relative w-full aspect-square bg-muted rounded-md flex items-center justify-center overflow-hidden">
+                                { imagePreviewUrl ?
+                                    <Image 
+                                            src={imagePreviewUrl}
+                                            alt="Image preview" 
+                                            fill 
+                                            sizes="(max-width: 768px) 90vw, 40vw"
+                                            className="object-contain"
+                                    />
+                                    : <ImageIcon className="w-24 h-24 text-muted-foreground" />
+                                }
+                            </div>
                         </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="imageFile">
-                                {dialogState?.type === 'create' ? 'Image File' : 'Replace Image (Optional)'}
-                            </Label>
-                            <Input id="imageFile" type="file" accept="image/*" ref={fileInputRef} onChange={handleFileChange} disabled={isLoadingAction} />
-                        </div>
-                        {imageFile && <p className="text-sm text-muted-foreground">New image: {imageFile.name}</p>}
-                        {uploadProgress !== null && <Progress value={uploadProgress} />}
                     </div>
                 )}
                 <DialogFooter>

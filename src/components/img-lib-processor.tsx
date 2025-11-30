@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useMemo, useRef, ChangeEvent } from 'react';
+import React, { useState, useMemo, useRef, ChangeEvent, useEffect } from 'react';
 import Image from 'next/image';
 import {
   collection,
@@ -43,6 +43,7 @@ import {
   Wand2,
   ChevronDown,
   AlertTriangle,
+  FolderSync,
 } from 'lucide-react';
 import JSZip from 'jszip';
 
@@ -130,9 +131,122 @@ type DialogState =
   | { type: 'delete'; record: LibImageRecord }
   | { type: 'restore' }
   | { type: 'clear-categories' }
+  | { type: 'bulk-categorize' }
   | null;
 
 type ViewMode = 'list' | 'grid' | 'small' | 'medium' | 'large' | 'extra-large';
+
+const dataUrlFromImageUrl = async (imageUrl: string): Promise<string> => {
+    // Check if the URL is already a data URI
+    if (imageUrl.startsWith('data:')) {
+        return imageUrl;
+    }
+    const response = await fetch(imageUrl);
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
+};
+
+const BulkCategorizeDialog = ({ onOpenChange, imagesToCategorize }: { onOpenChange: (open: boolean) => void, imagesToCategorize: LibImageRecord[] }) => {
+    const { user, firestore } = useFirebase();
+    const { toast } = useToast();
+    const [currentIndex, setCurrentIndex] = useState(0);
+    const [suggestedCategory, setSuggestedCategory] = useState('');
+    const [isCategorizing, setIsCategorizing] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+
+    const currentImage = imagesToCategorize[currentIndex];
+
+    useEffect(() => {
+        if (currentImage) {
+            setIsCategorizing(true);
+            setSuggestedCategory('');
+            dataUrlFromImageUrl(currentImage.libImg)
+                .then(photoDataUri => suggestCategory({ photoDataUri }))
+                .then(result => {
+                    setSuggestedCategory(result.category);
+                })
+                .catch(err => {
+                    console.error("Error suggesting category for bulk process:", err);
+                    toast({ variant: 'destructive', title: 'AI Suggestion Failed' });
+                })
+                .finally(() => setIsCategorizing(false));
+        }
+    }, [currentImage, toast]);
+
+    const handleSave = async (andClose: boolean) => {
+        if (!currentImage || !suggestedCategory.trim() || !user) return;
+        
+        setIsSaving(true);
+        try {
+            const docRef = doc(firestore, `users/${user.uid}/avatarImgLib`, currentImage.id);
+            await updateDoc(docRef, { libImgCategory: suggestedCategory.trim() });
+            
+            toast({ title: "Category Saved!", description: `"${currentImage.libImgName}" is now in "${suggestedCategory.trim()}".`});
+
+            if (andClose || currentIndex >= imagesToCategorize.length - 1) {
+                onOpenChange(false);
+            } else {
+                setCurrentIndex(prev => prev + 1);
+            }
+        } catch (error) {
+            console.error("Error saving category:", error);
+            toast({ variant: 'destructive', title: 'Save Failed' });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleSkip = () => {
+        if (currentIndex >= imagesToCategorize.length - 1) {
+            onOpenChange(false);
+        } else {
+            setCurrentIndex(prev => prev + 1);
+        }
+    };
+
+    if (!currentImage) {
+        return null;
+    }
+
+    return (
+        <Dialog open onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Bulk Categorize ({currentIndex + 1} / {imagesToCategorize.length})</DialogTitle>
+                    <DialogDescription>Review the suggested category or enter your own.</DialogDescription>
+                </DialogHeader>
+                <div className="py-4 space-y-4">
+                    <div className="relative w-full aspect-square bg-muted rounded-md flex items-center justify-center overflow-hidden">
+                        <Image src={currentImage.libImg} alt={currentImage.libImgName} fill className="object-contain" sizes="50vw" />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="bulk-category">Suggested Category</Label>
+                        {isCategorizing ? (
+                             <div className="flex items-center gap-2 h-10">
+                                <Loader2 className="h-4 w-4 animate-spin"/>
+                                <span>Getting AI suggestion...</span>
+                            </div>
+                        ) : (
+                            <Input id="bulk-category" value={suggestedCategory} onChange={e => setSuggestedCategory(e.target.value)} disabled={isSaving} />
+                        )}
+                    </div>
+                </div>
+                <DialogFooter className="grid grid-cols-2 sm:flex sm:flex-row sm:justify-end sm:space-x-2 gap-2">
+                    <Button variant="secondary" onClick={handleSkip} disabled={isSaving}>Skip</Button>
+                    <Button onClick={() => handleSave(false)} disabled={isSaving || isCategorizing || !suggestedCategory.trim()}>
+                        {(isSaving && !isCategorizing) ? <Loader2 className="animate-spin" /> : 'Save & Next'}
+                    </Button>
+                     <Button variant="outline" onClick={() => handleSave(true)} disabled={isSaving || isCategorizing || !suggestedCategory.trim()}>Save & Close</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+};
 
 const ImageGridItem = ({ record, onOpenDialog, onDownload }: { record: LibImageRecord, onOpenDialog: (state: DialogState) => void, onDownload: (record: LibImageRecord) => void }) => (
     <Card className="w-full group">
@@ -259,6 +373,8 @@ export default function ImgLibProcessor() {
   const { data: libImages, isLoading: libImagesLoading } = useCollection<LibImageRecord>(libQuery);
   const { data: allLibImages, isLoading: allLibImagesLoading } = useCollection<LibImageRecord>(allLibImagesQuery);
 
+  const uncategorizedImages = useMemo(() => allLibImages?.filter(img => !img.libImgCategory || img.libImgCategory === 'uncategorized') || [], [allLibImages]);
+
   const categoriesQuery = useMemoFirebase(() => {
     if (!user) return null;
     return query(collection(firestore, `users/${user.uid}/categories`), where('userId', '==', user.uid));
@@ -277,7 +393,7 @@ export default function ImgLibProcessor() {
         setImageDesc(state.record.libImgDesc || '');
         setImageCategory(state.record.libImgCategory || 'uncategorized');
         setImageFile(null);
-    } else if (state?.type !== 'clear-categories') {
+    } else if (state?.type !== 'clear-categories' && state?.type !== 'bulk-categorize') {
         setImageName('');
         setImageDesc('');
         setImageCategory('uncategorized');
@@ -518,17 +634,6 @@ export default function ImgLibProcessor() {
     }
   };
 
-    const dataUrlFromImageUrl = async (imageUrl: string): Promise<string> => {
-        const response = await fetch(imageUrl);
-        const blob = await response.blob();
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-        });
-    };
-
     const handleSuggestCategory = async () => {
       if (dialogState?.type !== 'edit' && !imageFile) {
         toast({ variant: 'destructive', title: 'No Image', description: 'Please provide an image to categorize.' });
@@ -721,65 +826,77 @@ export default function ImgLibProcessor() {
         <div className="space-y-4">
             <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                 <div className='flex gap-2 items-center flex-wrap'>
-                  <DropdownMenu>
-                      <Tooltip>
-                          <TooltipTrigger asChild>
-                              <DropdownMenuTrigger asChild>
-                                  <Button variant="outline">
-                                      <Filter className='mr-2 h-4 w-4' />
-                                      {filterCategory === 'all' || !filterCategory ? 'All Categories' : filterCategory}
-                                  </Button>
-                              </DropdownMenuTrigger>
-                          </TooltipTrigger>
-                          <TooltipContent><p>Filter by category</p></TooltipContent>
-                      </Tooltip>
-                      <DropdownMenuContent>
-                          <DropdownMenuLabel>Category</DropdownMenuLabel>
-                          <DropdownMenuRadioGroup value={filterCategory || 'all'} onValueChange={(v) => setFilterCategory(v)}>
-                              <DropdownMenuRadioItem value="all">All Categories</DropdownMenuRadioItem>
-                              <DropdownMenuSeparator/>
-                              {categoriesLoading ? <DropdownMenuItem disabled>Loading...</DropdownMenuItem> :
-                                sortedCategories.map(cat => <DropdownMenuRadioItem key={cat.id} value={cat.name}>{cat.name}</DropdownMenuRadioItem>)
-                              }
-                          </DropdownMenuRadioGroup>
-                      </DropdownMenuContent>
-                  </DropdownMenu>
-                  <Tooltip>
-                      <TooltipTrigger asChild>
-                           <Button variant="outline" size="icon" onClick={handleDownloadAll} disabled={allLibImagesLoading || !allLibImages || allLibImages.length === 0 || isLoadingAction}>
-                              {isLoadingAction ? <Loader2 className="h-4 w-4 animate-spin" /> : <DownloadCloud className="h-4 w-4" />}
-                          </Button>
-                      </TooltipTrigger>
-                      <TooltipContent><p>Download All as ZIP</p></TooltipContent>
-                  </Tooltip>
-                   <DropdownMenu>
+                    <DropdownMenu>
                         <Tooltip>
                             <TooltipTrigger asChild>
                                 <DropdownMenuTrigger asChild>
-                                    <Button variant="outline" size="icon">
-                                        <ChevronDown className="h-4 w-4" />
-                                        <span className="sr-only">Advanced Options</span>
+                                    <Button variant="outline">
+                                        <Filter className='mr-2 h-4 w-4' />
+                                        {filterCategory === 'all' || !filterCategory ? 'All Categories' : filterCategory}
                                     </Button>
                                 </DropdownMenuTrigger>
                             </TooltipTrigger>
-                            <TooltipContent><p>Advanced Options</p></TooltipContent>
+                            <TooltipContent><p>Filter by category</p></TooltipContent>
                         </Tooltip>
                         <DropdownMenuContent>
-                            <DropdownMenuItem onClick={handleBackup} disabled={allLibImagesLoading || !allLibImages || allLibImages.length === 0}>
-                                <Save className="mr-2 h-4 w-4" />
-                                Backup to JSON
-                            </DropdownMenuItem>
-                             <DropdownMenuItem onClick={() => openDialog({ type: 'restore' })}>
-                                <Upload className="mr-2 h-4 w-4" />
-                                Restore from JSON
-                            </DropdownMenuItem>
-                             <DropdownMenuSeparator />
-                             <DropdownMenuItem className="text-destructive" onClick={() => openDialog({ type: 'clear-categories' })}>
-                                <AlertTriangle className="mr-2 h-4 w-4" />
-                                Clear All Categories
-                            </DropdownMenuItem>
+                            <DropdownMenuLabel>Category</DropdownMenuLabel>
+                            <DropdownMenuRadioGroup value={filterCategory || 'all'} onValueChange={(v) => setFilterCategory(v)}>
+                                <DropdownMenuRadioItem value="all">All Categories</DropdownMenuRadioItem>
+                                <DropdownMenuSeparator/>
+                                {categoriesLoading ? <DropdownMenuItem disabled>Loading...</DropdownMenuItem> :
+                                    sortedCategories.map(cat => <DropdownMenuRadioItem key={cat.id} value={cat.name}>{cat.name}</DropdownMenuRadioItem>)
+                                }
+                            </DropdownMenuRadioGroup>
                         </DropdownMenuContent>
                     </DropdownMenu>
+
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                           <Button variant="outline" onClick={() => openDialog({ type: 'bulk-categorize' })} disabled={uncategorizedImages.length === 0}>
+                              <FolderSync className="mr-2 h-4 w-4" />
+                              Bulk Categorize (AI)
+                          </Button>
+                      </TooltipTrigger>
+                      <TooltipContent><p>Review AI category suggestions for all uncategorized images.</p></TooltipContent>
+                  </Tooltip>
+
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                             <Button variant="outline" size="icon" onClick={handleDownloadAll} disabled={allLibImagesLoading || !allLibImages || allLibImages.length === 0 || isLoadingAction}>
+                                {isLoadingAction ? <Loader2 className="h-4 w-4 animate-spin" /> : <DownloadCloud className="h-4 w-4" />}
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent><p>Download All as ZIP</p></TooltipContent>
+                    </Tooltip>
+
+                     <DropdownMenu>
+                          <Tooltip>
+                              <TooltipTrigger asChild>
+                                  <DropdownMenuTrigger asChild>
+                                      <Button variant="outline" size="icon">
+                                          <ChevronDown className="h-4 w-4" />
+                                          <span className="sr-only">Advanced Options</span>
+                                      </Button>
+                                  </DropdownMenuTrigger>
+                              </TooltipTrigger>
+                              <TooltipContent><p>Advanced Options</p></TooltipContent>
+                          </Tooltip>
+                          <DropdownMenuContent>
+                              <DropdownMenuItem onClick={handleBackup} disabled={allLibImagesLoading || !allLibImages || allLibImages.length === 0}>
+                                  <Save className="mr-2 h-4 w-4" />
+                                  Backup to JSON
+                              </DropdownMenuItem>
+                               <DropdownMenuItem onClick={() => openDialog({ type: 'restore' })}>
+                                  <Upload className="mr-2 h-4 w-4" />
+                                  Restore from JSON
+                              </DropdownMenuItem>
+                               <DropdownMenuSeparator />
+                               <DropdownMenuItem className="text-destructive" onClick={() => openDialog({ type: 'clear-categories' })}>
+                                  <AlertTriangle className="mr-2 h-4 w-4" />
+                                  Clear All Categories
+                              </DropdownMenuItem>
+                          </DropdownMenuContent>
+                      </DropdownMenu>
                 </div>
                 <div className='flex gap-2 self-end sm:self-center'>
                     <DropdownMenu>
@@ -934,6 +1051,13 @@ export default function ImgLibProcessor() {
                 </DialogFooter>
             </DialogContent>
         </Dialog>
+
+        {dialogState?.type === 'bulk-categorize' && (
+            <BulkCategorizeDialog 
+                imagesToCategorize={uncategorizedImages}
+                onOpenChange={(isOpen) => !isOpen && closeDialog()}
+            />
+        )}
 
         {/* Delete Confirmation Dialog */}
         <AlertDialog open={dialogState?.type === 'delete'} onOpenChange={(isOpen) => !isOpen && closeDialog()}>

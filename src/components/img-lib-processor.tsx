@@ -96,6 +96,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   useUser,
   useFirestore,
@@ -152,44 +153,57 @@ const dataUrlFromImageUrl = async (imageUrl: string): Promise<string> => {
     });
 };
 
-const BulkCategorizeDialog = ({ onOpenChange, imagesToCategorize }: { onOpenChange: (open: boolean) => void, imagesToCategorize: LibImageRecord[] }) => {
+const BulkCategorizeDialog = ({ onOpenChange, imagesToCategorize, allCategories }: { onOpenChange: (open: boolean) => void, imagesToCategorize: LibImageRecord[], allCategories: CategoryRecord[] }) => {
     const { user, firestore } = useFirebase();
     const { toast } = useToast();
     const [currentIndex, setCurrentIndex] = useState(0);
-    const [suggestedCategory, setSuggestedCategory] = useState('');
+    const [currentCategory, setCurrentCategory] = useState('');
     const [isCategorizing, setIsCategorizing] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [categorizationMode, setCategorizationMode] = useState<'select' | 'ai'>('select');
+    const [isConfirmingNoCategory, setIsConfirmingNoCategory] = useState(false);
+
 
     const currentImage = imagesToCategorize[currentIndex];
 
     useEffect(() => {
         if (currentImage) {
-            setIsCategorizing(true);
-            setSuggestedCategory('');
-            dataUrlFromImageUrl(currentImage.libImg)
-                .then(photoDataUri => suggestCategory({ photoDataUri }))
-                .then(result => {
-                    setSuggestedCategory(result.category);
-                })
-                .catch(err => {
-                    console.error("Error suggesting category for bulk process:", err);
-                    toast({ variant: 'destructive', title: 'AI Suggestion Failed' });
-                })
-                .finally(() => setIsCategorizing(false));
+            setCurrentCategory('uncategorized');
+            if (categorizationMode === 'ai') {
+                runAiSuggestion();
+            }
         }
-    }, [currentImage, toast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentImage, categorizationMode]);
 
-    const handleSave = async (andClose: boolean) => {
-        if (!currentImage || !suggestedCategory.trim() || !user) return;
+    const runAiSuggestion = () => {
+        if (!currentImage) return;
+
+        setIsCategorizing(true);
+        setCurrentCategory('');
+        dataUrlFromImageUrl(currentImage.libImg)
+            .then(photoDataUri => suggestCategory({ photoDataUri }))
+            .then(result => {
+                setCurrentCategory(result.category);
+            })
+            .catch(err => {
+                console.error("Error suggesting category for bulk process:", err);
+                toast({ variant: 'destructive', title: 'AI Suggestion Failed' });
+            })
+            .finally(() => setIsCategorizing(false));
+    }
+
+    const proceedToSave = async () => {
+        if (!currentImage || !user) return;
         
         setIsSaving(true);
         try {
             const docRef = doc(firestore, `users/${user.uid}/avatarImgLib`, currentImage.id);
-            await updateDoc(docRef, { libImgCategory: suggestedCategory.trim() });
+            await updateDoc(docRef, { libImgCategory: currentCategory.trim() });
             
-            toast({ title: "Category Saved!", description: `"${currentImage.libImgName}" is now in "${suggestedCategory.trim()}".`});
+            toast({ title: "Category Saved!", description: `"${currentImage.libImgName}" is now in "${currentCategory.trim() || 'uncategorized'}".`});
 
-            if (andClose || currentIndex >= imagesToCategorize.length - 1) {
+            if (currentIndex >= imagesToCategorize.length - 1) {
                 onOpenChange(false);
             } else {
                 setCurrentIndex(prev => prev + 1);
@@ -201,6 +215,15 @@ const BulkCategorizeDialog = ({ onOpenChange, imagesToCategorize }: { onOpenChan
             setIsSaving(false);
         }
     };
+    
+    const handleSave = () => {
+        if (!currentCategory.trim() || currentCategory.trim() === 'uncategorized') {
+            setIsConfirmingNoCategory(true);
+        } else {
+            proceedToSave();
+        }
+    };
+
 
     const handleSkip = () => {
         if (currentIndex >= imagesToCategorize.length - 1) {
@@ -215,37 +238,75 @@ const BulkCategorizeDialog = ({ onOpenChange, imagesToCategorize }: { onOpenChan
     }
 
     return (
-        <Dialog open onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                    <DialogTitle>Bulk Categorize ({currentIndex + 1} / {imagesToCategorize.length})</DialogTitle>
-                    <DialogDescription>Review the suggested category or enter your own.</DialogDescription>
-                </DialogHeader>
-                <div className="py-4 space-y-4">
-                    <div className="relative w-full aspect-square bg-muted rounded-md flex items-center justify-center overflow-hidden">
-                        <Image src={currentImage.libImg} alt={currentImage.libImgName} fill className="object-contain" sizes="50vw" />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="bulk-category">Suggested Category</Label>
-                        {isCategorizing ? (
-                             <div className="flex items-center gap-2 h-10">
-                                <Loader2 className="h-4 w-4 animate-spin"/>
-                                <span>Getting AI suggestion...</span>
+        <>
+            <Dialog open onOpenChange={(isOpen) => !isOpen && onOpenChange(false)}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Bulk Categorize ({currentIndex + 1} / {imagesToCategorize.length})</DialogTitle>
+                        <DialogDescription>Assign a category to your images.</DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4 space-y-4">
+                        <div className="relative w-full aspect-square bg-muted rounded-md flex items-center justify-center overflow-hidden">
+                            <Image src={currentImage.libImg} alt={currentImage.libImgName} fill className="object-contain" sizes="50vw" />
+                        </div>
+                        
+                        <RadioGroup defaultValue="select" value={categorizationMode} onValueChange={(value: 'select' | 'ai') => setCategorizationMode(value)} className="flex space-x-4">
+                            <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="select" id="r1" />
+                                <Label htmlFor="r1">Select from Existing</Label>
                             </div>
-                        ) : (
-                            <Input id="bulk-category" value={suggestedCategory} onChange={e => setSuggestedCategory(e.target.value)} disabled={isSaving} />
-                        )}
+                            <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="ai" id="r2" />
+                                <Label htmlFor="r2">Suggest with AI</Label>
+                            </div>
+                        </RadioGroup>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="bulk-category">Category</Label>
+                            {isCategorizing ? (
+                                <div className="flex items-center gap-2 h-10">
+                                    <Loader2 className="h-4 w-4 animate-spin"/>
+                                    <span>Getting AI suggestion...</span>
+                                </div>
+                            ) : categorizationMode === 'ai' ? (
+                                <Input id="bulk-category" value={currentCategory} onChange={e => setCurrentCategory(e.target.value)} disabled={isSaving} placeholder="AI suggestion will appear here..."/>
+                            ) : (
+                                 <Select value={currentCategory} onValueChange={setCurrentCategory} disabled={isSaving}>
+                                    <SelectTrigger id="bulk-category-select">
+                                        <SelectValue placeholder="Select a category" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="uncategorized">Uncategorized</SelectItem>
+                                        {allCategories.map(cat => <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            )}
+                        </div>
                     </div>
-                </div>
-                <DialogFooter className="grid grid-cols-2 sm:flex sm:flex-row sm:justify-end sm:space-x-2 gap-2">
-                    <Button variant="secondary" onClick={handleSkip} disabled={isSaving}>Skip</Button>
-                    <Button onClick={() => handleSave(false)} disabled={isSaving || isCategorizing || !suggestedCategory.trim()}>
-                        {(isSaving && !isCategorizing) ? <Loader2 className="animate-spin" /> : 'Save & Next'}
-                    </Button>
-                     <Button variant="outline" onClick={() => handleSave(true)} disabled={isSaving || isCategorizing || !suggestedCategory.trim()}>Save & Close</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+                    <DialogFooter className="grid grid-cols-2 sm:flex sm:flex-row sm:justify-end sm:space-x-2 gap-2">
+                        <Button variant="secondary" onClick={handleSkip} disabled={isSaving}>Skip</Button>
+                        <Button onClick={handleSave} disabled={isSaving || isCategorizing}>
+                            {isSaving ? <Loader2 className="animate-spin" /> : 'Save & Next'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <AlertDialog open={isConfirmingNoCategory} onOpenChange={setIsConfirmingNoCategory}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>No Category Assigned</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Are you sure you want to save this image without a category?
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => setIsConfirmingNoCategory(false)}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={proceedToSave}>Yes, Continue</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </>
     );
 };
 
@@ -1056,6 +1117,7 @@ export default function ImgLibProcessor() {
         {dialogState?.type === 'bulk-categorize' && (
             <BulkCategorizeDialog 
                 imagesToCategorize={uncategorizedImages}
+                allCategories={sortedCategories}
                 onOpenChange={(isOpen) => !isOpen && closeDialog()}
             />
         )}
@@ -1100,5 +1162,3 @@ export default function ImgLibProcessor() {
     </TooltipProvider>
   );
 }
-
-    

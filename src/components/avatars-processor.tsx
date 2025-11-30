@@ -668,7 +668,7 @@ export default function AvatarsProcessor() {
                 <DialogHeader>
                     <DialogTitle>{dialogState?.type === 'create' ? 'Create New Avatar' : 'Edit Avatar'}</DialogTitle>
                 </DialogHeader>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 py-4 max-h-[70vh] md:max-h-none overflow-y-auto pr-2">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 max-h-[80vh] overflow-y-auto p-1">
                     
                     {/* Left Column: Form Fields */}
                     <div className="flex flex-col gap-4">
@@ -685,7 +685,7 @@ export default function AvatarsProcessor() {
                             <Textarea id="avatarPrompt" value={avatarPrompt} onChange={e => setAvatarPrompt(e.target.value)} placeholder="The prompt used to generate this avatar (optional)" disabled={isLoadingAction} />
                         </div>
                         
-                        <div className="flex items-center space-x-4">
+                        <div className="flex flex-wrap items-center gap-4">
                             <div className="flex items-center space-x-2">
                                 <Checkbox 
                                     id="gen-with-ai" 

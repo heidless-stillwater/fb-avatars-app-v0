@@ -265,7 +265,7 @@ export default function NanoProcessor() {
                     alt="Original image"
                     width={400}
                     height={400}
-                    className="rounded-md mx-auto max-h-60 w-auto"
+                    className="rounded-md mx-auto max-h-48 sm:max-h-60 w-auto"
                   />
                    { !isLoading &&
                     <Button
@@ -282,7 +282,7 @@ export default function NanoProcessor() {
                    }
                 </div>
               ) : (
-                <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                <div className="flex flex-col items-center gap-2 text-muted-foreground h-48 sm:h-60 justify-center">
                   <Upload className="h-8 w-8" />
                   <span>Click to upload or drag & drop</span>
                 </div>
@@ -364,7 +364,7 @@ export default function NanoProcessor() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="aspect-square border-2 border-dashed border-muted rounded-lg flex items-center justify-center bg-muted/50">
+          <div className="aspect-square border-2 border-dashed border-muted rounded-lg flex items-center justify-center bg-muted/50 p-4">
             {isLoading && (
               <div className='flex flex-col items-center gap-4 text-muted-foreground'>
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -377,11 +377,11 @@ export default function NanoProcessor() {
                 alt="Transformed image"
                 width={500}
                 height={500}
-                className="rounded-md max-h-full w-auto"
+                className="rounded-md max-h-full w-auto object-contain"
               />
             )}
             {!isLoading && !transformedImage && !error && (
-              <p className="text-muted-foreground">Awaiting transformation...</p>
+              <p className="text-muted-foreground text-center">Awaiting transformation...</p>
             )}
             {error && (
               <Alert variant="destructive">

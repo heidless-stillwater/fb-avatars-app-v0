@@ -242,9 +242,9 @@ export default function CategoryProcessor() {
 
   return (
     <Card>
-        <CardHeader className='flex-row items-center justify-between'>
+        <CardHeader className='flex-row flex-wrap items-center justify-between gap-2'>
           <div>
-            <CardTitle className="text-base font-semibold">Category Manager</CardTitle>
+            <CardTitle className="text-base font-semibold">Categories</CardTitle>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="destructive" onClick={() => openDialog({ type: 'delete-all' })} size="sm" disabled={!sortedCategories || sortedCategories.length === 0}>

@@ -22,11 +22,11 @@ export default function AvatarsPage() {
 
     return (
         <div className="p-4 sm:p-6 md:p-8 h-full space-y-8">
-            <Collapsible open={isAvatarsOpen} onOpenChange={setIsAvatarsOpen} className="space-y-4">
-                <div className="flex items-center justify-between rounded-lg border p-4">
-                    <div>
-                        <h2 className="text-xl font-semibold">Avatars</h2>
-                        <p className="text-sm text-muted-foreground">Create and manage your avatars.</p>
+            <Collapsible open={isAvatarsOpen} onOpenChange={setIsAvatarsOpen} className="space-y-2 md:space-y-4">
+                <div className="flex items-center justify-between rounded-lg border p-3 md:p-4">
+                    <div className="space-y-1">
+                        <h2 className="text-lg md:text-xl font-semibold">Avatars</h2>
+                        <p className="text-xs md:text-sm text-muted-foreground">Create and manage your avatars.</p>
                     </div>
                     <CollapsibleTrigger asChild>
                         <Button variant="ghost" size="sm" className="w-9 p-0">
@@ -46,9 +46,12 @@ export default function AvatarsPage() {
             
             <Separator />
 
-            <Collapsible open={isCategoryManagerOpen} onOpenChange={setIsCategoryManagerOpen} className="space-y-4">
-                <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-semibold">Category Manager</h2>
+            <Collapsible open={isCategoryManagerOpen} onOpenChange={setIsCategoryManagerOpen} className="space-y-2 md:space-y-4">
+                <div className="flex items-center justify-between rounded-lg border p-3 md:p-4">
+                    <div className="space-y-1">
+                        <h2 className="text-lg md:text-xl font-semibold">Category Manager</h2>
+                         <p className="text-xs md:text-sm text-muted-foreground">Organize your image library.</p>
+                    </div>
                     <CollapsibleTrigger asChild>
                         <Button variant="ghost" size="sm" className="w-9 p-0">
                             <ChevronsUpDown className="h-4 w-4" />
@@ -63,9 +66,12 @@ export default function AvatarsPage() {
             
             <Separator />
 
-             <Collapsible open={isImageLibraryOpen} onOpenChange={setIsImageLibraryOpen} className="space-y-4">
-                <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-semibold">Image Library</h2>
+             <Collapsible open={isImageLibraryOpen} onOpenChange={setIsImageLibraryOpen} className="space-y-2 md:space-y-4">
+                <div className="flex items-center justify-between rounded-lg border p-3 md:p-4">
+                     <div className="space-y-1">
+                        <h2 className="text-lg md:text-xl font-semibold">Image Library</h2>
+                        <p className="text-xs md:text-sm text-muted-foreground">Store and manage reusable images.</p>
+                    </div>
                     <CollapsibleTrigger asChild>
                         <Button variant="ghost" size="sm" className="w-9 p-0">
                             <ChevronsUpDown className="h-4 w-4" />

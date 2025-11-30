@@ -39,6 +39,7 @@ import {
   LayoutGrid,
   Library,
   Sparkles,
+  PanelLeft,
 } from 'lucide-react';
 
 import { useToast } from '@/hooks/use-toast';
@@ -258,6 +259,7 @@ export default function AvatarsProcessor() {
   }, [generatedAvatarUrl, avatarFile, dialogState]);
 
   const openDialog = (state: DialogState) => {
+    setLibraryPopoverOpen(false);
     if (state?.type === 'edit') {
         setAvatarName(state.record.avatarName);
         setAvatarDesc(state.record.avatarDesc || '');
@@ -748,7 +750,7 @@ export default function AvatarsProcessor() {
                                     <Input id="avatarFile" type="file" accept="image/*" ref={fileInputRef} onChange={handleFileChange} disabled={isLoadingAction} className='flex-1' />
                                     <Popover open={libraryPopoverOpen} onOpenChange={setLibraryPopoverOpen}>
                                         <PopoverTrigger asChild>
-                                            <Button variant="outline" size="icon" disabled={isLoadingAction}>
+                                            <Button variant="outline" size="icon" disabled={isLoadingAction} onClick={() => setLibraryPopoverOpen(prev => !prev)}>
                                                 <Library className="h-4 w-4" />
                                             </Button>
                                         </PopoverTrigger>
@@ -827,5 +829,3 @@ export default function AvatarsProcessor() {
     </TooltipProvider>
   );
 }
-
-    

@@ -112,6 +112,7 @@ import { cn } from '@/lib/utils';
 import { Badge } from './ui/badge';
 import { suggestCategory } from '@/ai/flows/suggest-category-flow';
 import { Checkbox } from './ui/checkbox';
+import { Separator } from './ui/separator';
 
 
 interface LibImageRecord {

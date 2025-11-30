@@ -102,6 +102,7 @@ import {
   useStorage,
   useCollection,
   useMemoFirebase,
+  useFirebase,
 } from '@/firebase';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { cn } from '@/lib/utils';

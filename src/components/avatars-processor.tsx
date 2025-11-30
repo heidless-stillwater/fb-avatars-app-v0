@@ -274,6 +274,7 @@ export default function AvatarsProcessor() {
     setGenerateWithAI(false);
     setTestRun(false);
     setGeneratedAvatarUrl(null);
+    setLibraryPopoverOpen(false);
   };
 
   const onDialogStateChange = (open: boolean) => {
@@ -831,5 +832,3 @@ export default function AvatarsProcessor() {
     </TooltipProvider>
   );
 }
-
-    

@@ -15,6 +15,7 @@ import {
   Timestamp,
   where,
   writeBatch,
+  getDocs,
 } from 'firebase/firestore';
 import {
   ref as storageRef,
@@ -39,6 +40,8 @@ import {
   Save,
   DownloadCloud,
   Wand2,
+  ChevronDown,
+  AlertTriangle,
 } from 'lucide-react';
 import JSZip from 'jszip';
 
@@ -125,6 +128,7 @@ type DialogState =
   | { type: 'edit'; record: LibImageRecord }
   | { type: 'delete'; record: LibImageRecord }
   | { type: 'restore' }
+  | { type: 'clear-categories' }
   | null;
 
 type ViewMode = 'list' | 'grid' | 'small' | 'medium' | 'large' | 'extra-large';
@@ -272,7 +276,7 @@ export default function ImgLibProcessor() {
         setImageDesc(state.record.libImgDesc || '');
         setImageCategory(state.record.libImgCategory || 'uncategorized');
         setImageFile(null);
-    } else {
+    } else if (state?.type !== 'clear-categories') {
         setImageName('');
         setImageDesc('');
         setImageCategory('uncategorized');
@@ -482,6 +486,35 @@ export default function ImgLibProcessor() {
     reader.readAsText(restoreFile);
   };
   
+  const handleClearAllCategories = async () => {
+    if (!user) return;
+
+    setIsLoadingAction(true);
+    try {
+        const batch = writeBatch(firestore);
+        const q = query(collection(firestore, `users/${user.uid}/avatarImgLib`));
+        const snapshot = await getDocs(q);
+
+        if (snapshot.empty) {
+            toast({ title: 'No Images Found', description: 'There are no images in the library to update.'});
+            return;
+        }
+        
+        snapshot.docs.forEach(doc => {
+            batch.update(doc.ref, { libImgCategory: 'uncategorized' });
+        });
+
+        await batch.commit();
+        toast({ title: 'Success', description: `Cleared categories for ${snapshot.size} image(s).` });
+    } catch (error) {
+        console.error("Failed to clear categories:", error);
+        toast({ variant: 'destructive', title: 'Error', description: 'Could not clear all categories.' });
+    } finally {
+        setIsLoadingAction(false);
+        closeDialog();
+    }
+  };
+
     const dataUrlFromImageUrl = async (imageUrl: string): Promise<string> => {
         const response = await fetch(imageUrl);
         const blob = await response.blob();
@@ -716,22 +749,34 @@ export default function ImgLibProcessor() {
                       </TooltipTrigger>
                       <TooltipContent><p>Download All as ZIP</p></TooltipContent>
                   </Tooltip>
-                   <Tooltip>
-                        <TooltipTrigger asChild>
-                             <Button variant="outline" size="icon" onClick={handleBackup} disabled={allLibImagesLoading || !allLibImages || allLibImages.length === 0}>
-                                <Save className="h-4 w-4" />
-                            </Button>
-                        </TooltipTrigger>
-                        <TooltipContent><p>Backup Library to JSON</p></TooltipContent>
-                    </Tooltip>
-                     <Tooltip>
-                        <TooltipTrigger asChild>
-                             <Button variant="outline" size="icon" onClick={() => openDialog({ type: 'restore' })}>
-                                <Upload className="h-4 w-4" />
-                            </Button>
-                        </TooltipTrigger>
-                        <TooltipContent><p>Restore Library from JSON</p></TooltipContent>
-                    </Tooltip>
+                   <DropdownMenu>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" size="icon">
+                                        <ChevronDown className="h-4 w-4" />
+                                        <span className="sr-only">Advanced Options</span>
+                                    </Button>
+                                </DropdownMenuTrigger>
+                            </TooltipTrigger>
+                            <TooltipContent><p>Advanced Options</p></TooltipContent>
+                        </Tooltip>
+                        <DropdownMenuContent>
+                            <DropdownMenuItem onClick={handleBackup} disabled={allLibImagesLoading || !allLibImages || allLibImages.length === 0}>
+                                <Save className="mr-2 h-4 w-4" />
+                                Backup to JSON
+                            </DropdownMenuItem>
+                             <DropdownMenuItem onClick={() => openDialog({ type: 'restore' })}>
+                                <Upload className="mr-2 h-4 w-4" />
+                                Restore from JSON
+                            </DropdownMenuItem>
+                             <DropdownMenuSeparator />
+                             <DropdownMenuItem className="text-destructive" onClick={() => openDialog({ type: 'clear-categories' })}>
+                                <AlertTriangle className="mr-2 h-4 w-4" />
+                                Clear All Categories
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </div>
                 <div className='flex gap-2 self-end sm:self-center'>
                     <DropdownMenu>
@@ -904,10 +949,26 @@ export default function ImgLibProcessor() {
                 </AlertDialogFooter>
             </AlertDialogContent>
       </AlertDialog>
+      
+      {/* Clear Categories Confirmation Dialog */}
+      <AlertDialog open={dialogState?.type === 'clear-categories'} onOpenChange={(isOpen) => !isOpen && closeDialog()}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Are you sure you want to clear all categories?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        This action will reset the category for every image in your library to 'Uncategorized'. This cannot be undone.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel onClick={closeDialog} disabled={isLoadingAction}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleClearAllCategories} disabled={isLoadingAction} className="bg-destructive hover:bg-destructive/90">
+                        {isLoadingAction ? <Loader2 className="animate-spin" /> : 'Yes, Clear All Categories'}
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
       </CardContent>
     </Card>
     </TooltipProvider>
   );
 }
-
-    

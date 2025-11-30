@@ -493,61 +493,39 @@ export default function ImgLibProcessor() {
         });
     };
 
-    const handleAutoCategorize = async () => {
-        if (!allLibImages || !user) {
-            toast({ variant: 'destructive', title: 'No Images', description: 'There are no images to categorize.' });
-            return;
-        }
-
-        const uncategorizedImages = allLibImages.filter(img => !img.libImgCategory || img.libImgCategory === 'uncategorized');
-
-        if (uncategorizedImages.length === 0) {
-            toast({ title: 'All Set!', description: 'All images are already categorized.' });
-            return;
-        }
-
-        setIsCategorizing(true);
-        toast({ title: 'Starting AI Categorization', description: `Found ${uncategorizedImages.length} images to process.` });
-
-        try {
-            const batch = writeBatch(firestore);
-            const categoriesToCreate = new Set<string>();
-
-            const categoryPromises = uncategorizedImages.map(async (image) => {
-                try {
-                    const dataUri = await dataUrlFromImageUrl(image.libImg);
-                    const result = await suggestCategory({ photoDataUri: dataUri });
-                    const newCategory = result.category;
-                    const docRef = doc(firestore, `users/${user.uid}/avatarImgLib`, image.id);
-                    batch.update(docRef, { libImgCategory: newCategory });
-                    
-                    const categoryExists = allCategories?.some(c => c.name.toLowerCase() === newCategory.toLowerCase());
-                    if (!categoryExists) {
-                       categoriesToCreate.add(newCategory);
-                    }
-                } catch (err) {
-                    console.error(`Failed to categorize image ${image.id}:`, err);
-                }
+    const handleSuggestCategory = async () => {
+      if (dialogState?.type !== 'edit' && !imageFile) {
+        toast({ variant: 'destructive', title: 'No Image', description: 'Please provide an image to categorize.' });
+        return;
+      }
+      setIsCategorizing(true);
+      try {
+        let dataUri = '';
+        if (imageFile) {
+           dataUri = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.onerror = reject;
+                reader.readAsDataURL(imageFile);
             });
-
-            await Promise.all(categoryPromises);
-
-            categoriesToCreate.forEach(catName => {
-                const newCategoryDoc = { name: catName, userId: user.uid };
-                const newCategoryRef = doc(collection(firestore, `users/${user.uid}/categories`));
-                batch.set(newCategoryRef, newCategoryDoc);
-            });
-
-            await batch.commit();
-
-            toast({ title: 'Categorization Complete', description: `Successfully processed ${uncategorizedImages.length} images.` });
-
-        } catch (error) {
-            console.error('Auto-categorization failed:', error);
-            toast({ variant: 'destructive', title: 'Error', description: 'An error occurred during bulk categorization.' });
-        } finally {
-            setIsCategorizing(false);
+        } else if (dialogState?.type === 'edit') {
+            dataUri = await dataUrlFromImageUrl(dialogState.record.libImg);
         }
+
+        if (!dataUri) {
+            throw new Error('Could not get image data.');
+        }
+
+        const result = await suggestCategory({ photoDataUri: dataUri });
+        setImageCategory(result.category);
+        toast({ title: 'Suggestion Ready!', description: `AI suggested the category: "${result.category}".` });
+
+      } catch (err) {
+        console.error('Failed to suggest category:', err);
+        toast({ variant: 'destructive', title: 'Error', description: 'Could not get category suggestion from AI.' });
+      } finally {
+        setIsCategorizing(false);
+      }
     };
 
   const uploadImage = async (file: File, userId: string): Promise<{ downloadURL: string, storagePath: string }> => {
@@ -730,14 +708,6 @@ export default function ImgLibProcessor() {
                           </DropdownMenuRadioGroup>
                       </DropdownMenuContent>
                   </DropdownMenu>
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <Button variant="outline" size="icon" onClick={handleAutoCategorize} disabled={isCategorizing || allLibImagesLoading || !allLibImages || allLibImages.length === 0}>
-                                {isCategorizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
-                            </Button>
-                        </TooltipTrigger>
-                        <TooltipContent><p>Auto-Categorize All (AI)</p></TooltipContent>
-                    </Tooltip>
                   <Tooltip>
                       <TooltipTrigger asChild>
                            <Button variant="outline" size="icon" onClick={handleDownloadAll} disabled={allLibImagesLoading || !allLibImages || allLibImages.length === 0 || isLoadingAction}>
@@ -858,17 +828,35 @@ export default function ImgLibProcessor() {
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="imageCategory">Category</Label>
-                            <Select value={imageCategory} onValueChange={setImageCategory} disabled={isLoadingAction}>
-                                <SelectTrigger id="imageCategory">
-                                    <SelectValue placeholder="Select a category" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="uncategorized">Uncategorized</SelectItem>
-                                    {categoriesLoading ? <SelectItem value="loading" disabled>Loading...</SelectItem> :
-                                    sortedCategories.map(cat => <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>)
-                                    }
-                                </SelectContent>
-                            </Select>
+                            <div className="flex items-center gap-2">
+                                <Select value={imageCategory} onValueChange={setImageCategory} disabled={isLoadingAction}>
+                                    <SelectTrigger id="imageCategory">
+                                        <SelectValue placeholder="Select a category" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="uncategorized">Uncategorized</SelectItem>
+                                        {categoriesLoading ? <SelectItem value="loading" disabled>Loading...</SelectItem> :
+                                        sortedCategories.map(cat => <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>)
+                                        }
+                                    </SelectContent>
+                                </Select>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="icon"
+                                            onClick={handleSuggestCategory}
+                                            disabled={isCategorizing || isLoadingAction || (!imageFile && dialogState?.type !== 'edit')}
+                                        >
+                                            {isCategorizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>Suggest Category (AI)</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </div>
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="imageDesc">Description</Label>

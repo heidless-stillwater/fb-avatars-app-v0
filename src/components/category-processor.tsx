@@ -19,6 +19,7 @@ import {
   Trash2,
   Loader2,
   Plus,
+  AlertTriangle,
 } from 'lucide-react';
 
 import { useToast } from '@/hooks/use-toast';
@@ -67,6 +68,7 @@ type DialogState =
   | { type: 'create' }
   | { type: 'rename'; category: CategoryRecord }
   | { type: 'delete'; category: CategoryRecord }
+  | { type: 'delete-all' }
   | null;
 
 export default function CategoryProcessor() {
@@ -204,16 +206,56 @@ export default function CategoryProcessor() {
     }
   };
 
+  const handleDeleteAllCategories = async () => {
+    if (!user || !categories) return;
+
+    setIsLoadingAction(true);
+    try {
+        const batch = writeBatch(firestore);
+
+        // Delete all category documents
+        categories.forEach(category => {
+            const categoryDocRef = doc(firestore, `users/${user.uid}/categories`, category.id);
+            batch.delete(categoryDocRef);
+        });
+
+        // Find all images and reset their category
+        const imagesQuery = query(
+            collection(firestore, `users/${user.uid}/avatarImgLib`)
+        );
+        const imageSnapshot = await getDocs(imagesQuery);
+
+        imageSnapshot.docs.forEach(docToUpdate => {
+            batch.update(docToUpdate.ref, { libImgCategory: 'uncategorized' });
+        });
+
+        await batch.commit();
+        toast({ title: 'Success', description: `Deleted all ${categories.length} categories and updated ${imageSnapshot.size} image(s).` });
+        closeDialog();
+    } catch (error) {
+        console.error("Delete all categories failed:", error);
+        toast({ variant: 'destructive', title: 'Error', description: 'Could not delete all categories.' });
+    } finally {
+        setIsLoadingAction(false);
+    }
+  };
+
   return (
     <Card>
         <CardHeader className='flex-row items-center justify-between'>
           <div>
             <CardTitle className="text-base font-semibold">Category Manager</CardTitle>
           </div>
-          <Button onClick={() => openDialog({ type: 'create' })} size="sm">
-            <Plus className="mr-2 h-4 w-4" />
-            New
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="destructive" onClick={() => openDialog({ type: 'delete-all' })} size="sm" disabled={!sortedCategories || sortedCategories.length === 0}>
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete All
+            </Button>
+            <Button onClick={() => openDialog({ type: 'create' })} size="sm">
+              <Plus className="mr-2 h-4 w-4" />
+              New
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
             {categoriesLoading ? (
@@ -286,8 +328,24 @@ export default function CategoryProcessor() {
                 </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>
+
+        {/* Delete All Confirmation Dialog */}
+        <AlertDialog open={dialogState?.type === 'delete-all'} onOpenChange={(isOpen) => !isOpen && closeDialog()}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                       This will permanently delete ALL categories. All images will be moved to 'Uncategorized'. This action cannot be undone.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel onClick={closeDialog} disabled={isLoadingAction}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDeleteAllCategories} disabled={isLoadingAction} className="bg-destructive hover:bg-destructive/90">
+                        {isLoadingAction ? <Loader2 className="animate-spin" /> : 'Yes, Delete All'}
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
     </Card>
   );
 }
-
-    

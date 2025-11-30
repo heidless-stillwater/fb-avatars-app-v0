@@ -44,6 +44,8 @@ import {
   ChevronDown,
   AlertTriangle,
   FolderSync,
+  X,
+  Folder as FolderIcon,
 } from 'lucide-react';
 import JSZip from 'jszip';
 
@@ -109,6 +111,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/t
 import { cn } from '@/lib/utils';
 import { Badge } from './ui/badge';
 import { suggestCategory } from '@/ai/flows/suggest-category-flow';
+import { Checkbox } from './ui/checkbox';
 
 
 interface LibImageRecord {
@@ -133,7 +136,9 @@ type DialogState =
   | { type: 'delete'; record: LibImageRecord }
   | { type: 'restore' }
   | { type: 'clear-categories' }
-  | { type: 'bulk-categorize' }
+  | { type: 'bulk-categorize-uncategorized' }
+  | { type: 'bulk-categorize-selected', records: LibImageRecord[] }
+  | { type: 'bulk-delete-selected', records: LibImageRecord[] }
   | null;
 
 type ViewMode = 'list' | 'grid' | 'small' | 'medium' | 'large' | 'extra-large';
@@ -310,8 +315,11 @@ const BulkCategorizeDialog = ({ onOpenChange, imagesToCategorize, allCategories 
     );
 };
 
-const ImageGridItem = ({ record, onOpenDialog, onDownload }: { record: LibImageRecord, onOpenDialog: (state: DialogState) => void, onDownload: (record: LibImageRecord) => void }) => (
-    <Card className="w-full group">
+const ImageGridItem = ({ record, onOpenDialog, onDownload, onSelectionChange, isSelected }: { record: LibImageRecord, onOpenDialog: (state: DialogState) => void, onDownload: (record: LibImageRecord) => void, onSelectionChange: (id: string, checked: boolean) => void, isSelected: boolean }) => (
+    <Card className={cn("w-full group relative", isSelected && "ring-2 ring-primary")}>
+        <div className="absolute top-2 left-2 z-10">
+            <Checkbox checked={isSelected} onCheckedChange={(checked) => onSelectionChange(record.id, checked as boolean)} className="bg-background/80"/>
+        </div>
         <CardContent className="p-0">
             <div className="aspect-square w-full flex items-center justify-center bg-muted rounded-t-lg overflow-hidden relative">
                 <Image 
@@ -355,8 +363,11 @@ const ImageGridItem = ({ record, onOpenDialog, onDownload }: { record: LibImageR
     </Card>
 );
 
-const ImageListItem = ({ record, onOpenDialog, onDownload }: { record: LibImageRecord, onOpenDialog: (state: DialogState) => void, onDownload: (record: LibImageRecord) => void }) => (
-    <div className="flex items-center w-full px-2 py-1.5 rounded-md hover:bg-muted group">
+const ImageListItem = ({ record, onOpenDialog, onDownload, onSelectionChange, isSelected }: { record: LibImageRecord, onOpenDialog: (state: DialogState) => void, onDownload: (record: LibImageRecord) => void, onSelectionChange: (id: string, checked: boolean) => void, isSelected: boolean }) => (
+    <div className={cn("flex items-center w-full px-2 py-1.5 rounded-md hover:bg-muted group", isSelected && "bg-muted")}>
+         <div className="px-2">
+            <Checkbox checked={isSelected} onCheckedChange={(checked) => onSelectionChange(record.id, checked as boolean)} />
+        </div>
         <div className="flex items-center gap-3 flex-1 min-w-0">
             <Image src={record.libImg} alt={record.libImgName} width={40} height={40} className="object-cover rounded-md w-10 h-10"/>
             <div className="flex-1 min-w-0">
@@ -406,6 +417,7 @@ export default function ImgLibProcessor() {
   const [dialogState, setDialogState] = useState<DialogState>(null);
   const [view, setView] = useState<ViewMode>('small');
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const [imageName, setImageName] = useState('');
   const [imageDesc, setImageDesc] = useState('');
@@ -448,6 +460,42 @@ export default function ImgLibProcessor() {
     return allCategories?.sort((a, b) => a.name.localeCompare(b.name)) || [];
   }, [allCategories]);
 
+  const selectedRecords = useMemo(() => {
+    if (selectedIds.size === 0) return [];
+    return allLibImages?.filter(img => selectedIds.has(img.id)) || [];
+  }, [selectedIds, allLibImages]);
+
+  const handleSelectionChange = (id: string, checked: boolean) => {
+    setSelectedIds(prev => {
+        const newSet = new Set(prev);
+        if (checked) {
+            newSet.add(id);
+        } else {
+            newSet.delete(id);
+        }
+        return newSet;
+    });
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+        const allIds = libImages?.map(img => img.id) || [];
+        setSelectedIds(new Set(allIds));
+    } else {
+        setSelectedIds(new Set());
+    }
+  };
+
+  const isAllSelected = useMemo(() => {
+    if (!libImages || libImages.length === 0) return false;
+    return selectedIds.size === libImages.length && libImages.every(img => selectedIds.has(img.id));
+  }, [selectedIds, libImages]);
+
+
+  useEffect(() => {
+    // Clear selection when filter changes
+    setSelectedIds(new Set());
+  }, [filterCategory]);
 
   const openDialog = (state: DialogState) => {
     if (state?.type === 'edit') {
@@ -455,11 +503,12 @@ export default function ImgLibProcessor() {
         setImageDesc(state.record.libImgDesc || '');
         setImageCategory(state.record.libImgCategory || 'uncategorized');
         setImageFile(null);
-    } else if (state?.type !== 'clear-categories' && state?.type !== 'bulk-categorize') {
+    } else if (state?.type === 'create') {
         setImageName('');
         setImageDesc('');
         setImageCategory('uncategorized');
         setImageFile(null);
+    } else if (state?.type === 'restore') {
         setRestoreFile(null);
     }
     setDialogState(state);
@@ -538,15 +587,20 @@ export default function ImgLibProcessor() {
         const zip = new JSZip();
         
         const imagePromises = allLibImages.map(async (image) => {
-            const response = await fetch(image.libImg);
-            if (!response.ok) {
-                console.warn(`Failed to fetch image: ${image.libImgName}`);
-                return;
+            try {
+                const response = await fetch(image.libImg);
+                if (!response.ok) {
+                    console.warn(`Failed to fetch image: ${image.libImgName}`);
+                    return;
+                }
+                const blob = await response.blob();
+                const fileExtension = image.libImg.split('.').pop()?.split('?')[0] || 'jpg';
+                const categoryPath = (image.libImgCategory && image.libImgCategory !== 'uncategorized') ? `${image.libImgCategory}/` : '';
+                const fileName = `${categoryPath}${image.libImgName}.${fileExtension}`;
+                zip.file(fileName, blob);
+            } catch (fetchError) {
+                console.warn(`Could not fetch or add ${image.libImgName} to zip:`, fetchError);
             }
-            const blob = await response.blob();
-            const fileExtension = image.libImg.split('.').pop()?.split('?')[0] || 'jpg';
-            const fileName = `${image.libImgCategory ? `${image.libImgCategory}/` : ''}${image.libImgName}.${fileExtension}`;
-            zip.file(fileName, blob);
         });
 
         await Promise.all(imagePromises);
@@ -835,30 +889,64 @@ export default function ImgLibProcessor() {
     }
   };
 
-  const handleDelete = async () => {
-    if (dialogState?.type !== 'delete' || !user) return;
+  const handleDelete = async (record?: LibImageRecord) => {
+    if (!user) return;
     
     setIsLoadingAction(true);
-    const recordToDelete = dialogState.record;
+    const recordsToDelete = record ? [record] : selectedRecords;
+    if (recordsToDelete.length === 0) {
+        toast({variant: 'destructive', title: 'No records to delete'});
+        setIsLoadingAction(false);
+        return;
+    }
 
     try {
-        const docRef = doc(firestore, `users/${user.uid}/avatarImgLib`, recordToDelete.id);
-        await deleteDoc(docRef);
+        const batch = writeBatch(firestore);
 
-        if (recordToDelete.libImgStoragePath) {
-            const imageRef = storageRef(storage, recordToDelete.libImgStoragePath);
-            await deleteObject(imageRef);
+        for (const rec of recordsToDelete) {
+            const docRef = doc(firestore, `users/${user.uid}/avatarImgLib`, rec.id);
+            batch.delete(docRef);
+            if (rec.libImgStoragePath) {
+                const imageRef = storageRef(storage, rec.libImgStoragePath);
+                await deleteObject(imageRef).catch(err => console.warn(`Could not delete storage object ${rec.libImgStoragePath}`, err));
+            }
         }
 
-        toast({ title: 'Success', description: `Image "${recordToDelete.libImgName}" deleted from library.`});
-        closeDialog();
+        await batch.commit();
+
+        toast({ title: 'Success', description: `${recordsToDelete.length} image(s) deleted from library.`});
+        closeDialog(); // For single and bulk deletion dialogs
+        setSelectedIds(new Set()); // Clear selection
     } catch (error) {
         console.error("Delete failed:", error);
-        toast({ variant: 'destructive', title: 'Error', description: 'Could not delete image.' });
+        toast({ variant: 'destructive', title: 'Error', description: 'Could not delete image(s).' });
     } finally {
         setIsLoadingAction(false);
     }
   };
+
+  const handleBulkCategorize = async (category: string) => {
+    if (!user || selectedRecords.length === 0) return;
+
+    setIsLoadingAction(true);
+    try {
+        const batch = writeBatch(firestore);
+        selectedRecords.forEach(rec => {
+            const docRef = doc(firestore, `users/${user.uid}/avatarImgLib`, rec.id);
+            batch.update(docRef, { libImgCategory: category });
+        });
+        await batch.commit();
+        toast({ title: 'Success!', description: `${selectedRecords.length} images have been moved to "${category}".`});
+        setSelectedIds(new Set());
+        closeDialog();
+    } catch (error) {
+        console.error("Bulk categorization failed:", error);
+        toast({ variant: 'destructive', title: 'Error', description: 'Could not update categories.'});
+    } finally {
+        setIsLoadingAction(false);
+    }
+  };
+
 
   const viewClasses: Record<ViewMode, string> = {
     list: "flex flex-col gap-1",
@@ -888,77 +976,74 @@ export default function ImgLibProcessor() {
         <div className="space-y-4">
             <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                 <div className='flex gap-2 items-center flex-wrap'>
-                    <DropdownMenu>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
+                     {selectedIds.size > 0 ? (
+                        <div className="flex items-center gap-2 h-9 border rounded-md px-2 bg-muted">
+                            <span className="text-sm font-medium">{selectedIds.size} selected</span>
+                            <Separator orientation="vertical" className="h-4"/>
+                            <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <Button variant="outline">
-                                        <Filter className='mr-2 h-4 w-4' />
-                                        {filterCategory === 'all' || !filterCategory ? 'All Categories' : filterCategory}
+                                    <Button variant="ghost" size="sm">
+                                        <FolderIcon className="mr-2 h-4 w-4"/>
+                                        Categorize
                                     </Button>
                                 </DropdownMenuTrigger>
-                            </TooltipTrigger>
-                            <TooltipContent><p>Filter by category</p></TooltipContent>
-                        </Tooltip>
-                        <DropdownMenuContent>
-                            <DropdownMenuLabel>Category</DropdownMenuLabel>
-                            <DropdownMenuRadioGroup value={filterCategory || 'all'} onValueChange={(v) => setFilterCategory(v)}>
-                                <DropdownMenuRadioItem value="all">All Categories</DropdownMenuRadioItem>
-                                <DropdownMenuSeparator/>
-                                {categoriesLoading ? <DropdownMenuItem disabled>Loading...</DropdownMenuItem> :
-                                    sortedCategories.map(cat => <DropdownMenuRadioItem key={cat.id} value={cat.name}>{cat.name}</DropdownMenuRadioItem>)
-                                }
-                            </DropdownMenuRadioGroup>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
+                                <DropdownMenuContent>
+                                    <DropdownMenuLabel>Move to...</DropdownMenuLabel>
+                                    <DropdownMenuSeparator/>
+                                     <DropdownMenuItem onSelect={() => handleBulkCategorize('uncategorized')}>Uncategorized</DropdownMenuItem>
+                                     {sortedCategories.map(cat => (
+                                        <DropdownMenuItem key={cat.id} onSelect={() => handleBulkCategorize(cat.name)}>
+                                            {cat.name}
+                                        </DropdownMenuItem>
+                                     ))}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
 
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                           <Button variant="outline" onClick={() => openDialog({ type: 'bulk-categorize' })} disabled={uncategorizedImages.length === 0}>
-                              <FolderSync className="mr-2 h-4 w-4" />
-                              Bulk Categorize (AI)
-                          </Button>
-                      </TooltipTrigger>
-                      <TooltipContent><p>Review AI category suggestions for all uncategorized images.</p></TooltipContent>
-                  </Tooltip>
-
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                             <Button variant="outline" size="icon" onClick={handleDownloadAll} disabled={allLibImagesLoading || !allLibImages || allLibImages.length === 0 || isLoadingAction}>
-                                {isLoadingAction ? <Loader2 className="h-4 w-4 animate-spin" /> : <DownloadCloud className="h-4 w-4" />}
+                            <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => openDialog({ type: 'bulk-delete-selected', records: selectedRecords })}>
+                                <Trash2 className="mr-2 h-4 w-4"/>
+                                Delete
                             </Button>
-                        </TooltipTrigger>
-                        <TooltipContent><p>Download All as ZIP</p></TooltipContent>
-                    </Tooltip>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSelectedIds(new Set())}>
+                                <X className="h-4 w-4"/>
+                            </Button>
+                        </div>
+                    ) : (
+                        <>
+                            <DropdownMenu>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button variant="outline">
+                                                <Filter className='mr-2 h-4 w-4' />
+                                                {filterCategory === 'all' || !filterCategory ? 'All Categories' : filterCategory}
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                    </TooltipTrigger>
+                                    <TooltipContent><p>Filter by category</p></TooltipContent>
+                                </Tooltip>
+                                <DropdownMenuContent>
+                                    <DropdownMenuLabel>Category</DropdownMenuLabel>
+                                    <DropdownMenuRadioGroup value={filterCategory || 'all'} onValueChange={(v) => setFilterCategory(v)}>
+                                        <DropdownMenuRadioItem value="all">All Categories</DropdownMenuRadioItem>
+                                        <DropdownMenuSeparator/>
+                                        {categoriesLoading ? <DropdownMenuItem disabled>Loading...</DropdownMenuItem> :
+                                            sortedCategories.map(cat => <DropdownMenuRadioItem key={cat.id} value={cat.name}>{cat.name}</DropdownMenuRadioItem>)
+                                        }
+                                    </DropdownMenuRadioGroup>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
 
-                     <DropdownMenu>
-                          <Tooltip>
-                              <TooltipTrigger asChild>
-                                  <DropdownMenuTrigger asChild>
-                                      <Button variant="outline" size="icon">
-                                          <ChevronDown className="h-4 w-4" />
-                                          <span className="sr-only">Advanced Options</span>
-                                      </Button>
-                                  </DropdownMenuTrigger>
-                              </TooltipTrigger>
-                              <TooltipContent><p>Advanced Options</p></TooltipContent>
-                          </Tooltip>
-                          <DropdownMenuContent>
-                              <DropdownMenuItem onClick={handleBackup} disabled={allLibImagesLoading || !allLibImages || allLibImages.length === 0}>
-                                  <Save className="mr-2 h-4 w-4" />
-                                  Backup to JSON
-                              </DropdownMenuItem>
-                               <DropdownMenuItem onClick={() => openDialog({ type: 'restore' })}>
-                                  <Upload className="mr-2 h-4 w-4" />
-                                  Restore from JSON
-                              </DropdownMenuItem>
-                               <DropdownMenuSeparator />
-                               <DropdownMenuItem className="text-destructive" onClick={() => openDialog({ type: 'clear-categories' })}>
-                                  <AlertTriangle className="mr-2 h-4 w-4" />
-                                  Clear All Categories
-                              </DropdownMenuItem>
-                          </DropdownMenuContent>
-                      </DropdownMenu>
+                            <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button variant="outline" onClick={() => openDialog({ type: 'bulk-categorize-uncategorized' })} disabled={uncategorizedImages.length === 0}>
+                                    <FolderSync className="mr-2 h-4 w-4" />
+                                    Bulk Categorize (AI)
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent><p>Review AI category suggestions for all uncategorized images.</p></TooltipContent>
+                        </Tooltip>
+                        </>
+                    )}
                 </div>
                 <div className='flex gap-2 self-end sm:self-center'>
                     <DropdownMenu>
@@ -986,6 +1071,39 @@ export default function ImgLibProcessor() {
                         </DropdownMenuContent>
                     </DropdownMenu>
 
+                     <DropdownMenu>
+                          <Tooltip>
+                              <TooltipTrigger asChild>
+                                  <DropdownMenuTrigger asChild>
+                                      <Button variant="outline" size="icon">
+                                          <ChevronDown className="h-4 w-4" />
+                                          <span className="sr-only">Advanced Options</span>
+                                      </Button>
+                                  </DropdownMenuTrigger>
+                              </TooltipTrigger>
+                              <TooltipContent><p>Advanced Options</p></TooltipContent>
+                          </Tooltip>
+                          <DropdownMenuContent>
+                               <DropdownMenuItem onClick={handleDownloadAll} disabled={allLibImagesLoading || !allLibImages || allLibImages.length === 0 || isLoadingAction}>
+                                    {isLoadingAction ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DownloadCloud className="mr-2 h-4 w-4" />}
+                                    Download All as ZIP
+                                </DropdownMenuItem>
+                              <DropdownMenuItem onClick={handleBackup} disabled={allLibImagesLoading || !allLibImages || allLibImages.length === 0}>
+                                  <Save className="mr-2 h-4 w-4" />
+                                  Backup to JSON
+                              </DropdownMenuItem>
+                               <DropdownMenuItem onClick={() => openDialog({ type: 'restore' })}>
+                                  <Upload className="mr-2 h-4 w-4" />
+                                  Restore from JSON
+                              </DropdownMenuItem>
+                               <DropdownMenuSeparator />
+                               <DropdownMenuItem className="text-destructive" onClick={() => openDialog({ type: 'clear-categories' })}>
+                                  <AlertTriangle className="mr-2 h-4 w-4" />
+                                  Clear All Categories
+                              </DropdownMenuItem>
+                          </DropdownMenuContent>
+                      </DropdownMenu>
+
                     <Tooltip>
                         <TooltipTrigger asChild>
                              <Button onClick={() => openDialog({ type: 'create' })}>
@@ -997,30 +1115,43 @@ export default function ImgLibProcessor() {
                 </div>
             </div>
 
-            {libImagesLoading && (
+            {libImagesLoading ? (
                 <div className="flex items-center justify-center h-64">
                     <Loader2 className="h-8 w-8 animate-spin" />
                 </div>
-            )}
-            
-            {!libImagesLoading && libImages && libImages.length > 0 ? (
+            ) : libImages && libImages.length > 0 ? (
                  view === 'list' ? (
-                    <div className="flex flex-col gap-1 border rounded-lg p-2">
-                        {libImages.map(image => <ImageListItem key={image.id} record={image} onOpenDialog={openDialog} onDownload={handleDownload} />)}
+                    <div className="border rounded-lg">
+                        <div className="flex items-center w-full px-2 py-1.5 border-b">
+                           <div className="px-2">
+                             <Checkbox checked={isAllSelected} onCheckedChange={handleSelectAll} aria-label="Select all"/>
+                           </div>
+                           <div className="flex-1 min-w-0 pl-3">
+                               <span className="text-sm font-semibold text-muted-foreground">Name</span>
+                           </div>
+                           <div className="hidden md:block w-40">
+                               <span className="text-sm font-semibold text-muted-foreground">Category</span>
+                           </div>
+                            <div className="hidden sm:block text-sm font-semibold text-muted-foreground w-48">
+                                Added
+                            </div>
+                            <div className="w-7 h-7 ml-auto" />
+                        </div>
+                        <div className="flex flex-col gap-1 p-1">
+                            {libImages.map(image => <ImageListItem key={image.id} record={image} onOpenDialog={openDialog} onDownload={handleDownload} onSelectionChange={handleSelectionChange} isSelected={selectedIds.has(image.id)}/>)}
+                        </div>
                     </div>
                  ) : (
                     <div className={cn("grid gap-4", viewClasses[view])}>
-                        {libImages.map(image => <ImageGridItem key={image.id} record={image} onOpenDialog={openDialog} onDownload={handleDownload} />)}
+                        {libImages.map(image => <ImageGridItem key={image.id} record={image} onOpenDialog={openDialog} onDownload={handleDownload} onSelectionChange={handleSelectionChange} isSelected={selectedIds.has(image.id)}/>)}
                     </div>
                  )
             ) : (
-                !libImagesLoading && (
-                    <div className="flex flex-col items-center justify-center h-64 rounded-md border border-dashed text-sm text-muted-foreground">
-                        <ImageIcon className="h-10 w-10 mb-2" />
-                        <p>Your image library is empty.</p>
-                         {filterCategory && filterCategory !== 'all' && <p className='text-xs mt-1'>Try selecting 'All Categories'.</p>}
-                    </div>
-                )
+                <div className="flex flex-col items-center justify-center h-64 rounded-md border border-dashed text-sm text-muted-foreground">
+                    <ImageIcon className="h-10 w-10 mb-2" />
+                    <p>Your image library is empty.</p>
+                     {filterCategory && filterCategory !== 'all' && <p className='text-xs mt-1'>Try selecting 'All Categories'.</p>}
+                </div>
             )}
         </div>
 
@@ -1114,7 +1245,7 @@ export default function ImgLibProcessor() {
             </DialogContent>
         </Dialog>
 
-        {dialogState?.type === 'bulk-categorize' && (
+        {dialogState?.type === 'bulk-categorize-uncategorized' && (
             <BulkCategorizeDialog 
                 imagesToCategorize={uncategorizedImages}
                 allCategories={sortedCategories}
@@ -1133,13 +1264,31 @@ export default function ImgLibProcessor() {
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                     <AlertDialogCancel onClick={closeDialog}>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">
+                    <AlertDialogAction onClick={() => handleDelete(dialogState?.type === 'delete' ? dialogState.record : undefined)} className="bg-destructive hover:bg-destructive/90">
                         {isLoadingAction ? <Loader2 className="animate-spin" /> : 'Delete'}
                     </AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>
       </AlertDialog>
       
+      {/* Bulk Delete Confirmation */}
+      <AlertDialog open={dialogState?.type === 'bulk-delete-selected'} onOpenChange={(isOpen) => !isOpen && closeDialog()}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        This will permanently delete the selected {dialogState?.type === 'bulk-delete-selected' && dialogState.records.length} image(s). This action cannot be undone.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel onClick={closeDialog}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => handleDelete()} className="bg-destructive hover:bg-destructive/90">
+                        {isLoadingAction ? <Loader2 className="animate-spin" /> : 'Delete Selected'}
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+
       {/* Clear Categories Confirmation Dialog */}
       <AlertDialog open={dialogState?.type === 'clear-categories'} onOpenChange={(isOpen) => !isOpen && closeDialog()}>
             <AlertDialogContent>

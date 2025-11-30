@@ -105,7 +105,6 @@ import {
   useStorage,
   useCollection,
   useMemoFirebase,
-  useFirebase,
 } from '@/firebase';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { cn } from '@/lib/utils';
@@ -137,15 +136,13 @@ type DialogState =
   | { type: 'delete'; record: LibImageRecord }
   | { type: 'restore' }
   | { type: 'clear-categories' }
-  | { type: 'bulk-categorize-uncategorized' }
-  | { type: 'bulk-categorize-selected', records: LibImageRecord[] }
+  | { type: 'bulk-categorize', records: LibImageRecord[] }
   | { type: 'bulk-delete-selected', records: LibImageRecord[] }
   | null;
 
 type ViewMode = 'list' | 'grid' | 'small' | 'medium' | 'large' | 'extra-large';
 
 const dataUrlFromImageUrl = async (imageUrl: string): Promise<string> => {
-    // Check if the URL is already a data URI
     if (imageUrl.startsWith('data:')) {
         return imageUrl;
     }
@@ -160,7 +157,7 @@ const dataUrlFromImageUrl = async (imageUrl: string): Promise<string> => {
 };
 
 const BulkCategorizeDialog = ({ onOpenChange, imagesToCategorize, allCategories }: { onOpenChange: (open: boolean) => void, imagesToCategorize: LibImageRecord[], allCategories: CategoryRecord[] }) => {
-    const { user, firestore } = useFirebase();
+    const { user, firestore } = useUser();
     const { toast } = useToast();
     const [currentIndex, setCurrentIndex] = useState(0);
     const [currentCategory, setCurrentCategory] = useState('');
@@ -174,7 +171,7 @@ const BulkCategorizeDialog = ({ onOpenChange, imagesToCategorize, allCategories 
 
     useEffect(() => {
         if (currentImage) {
-            setCurrentCategory('uncategorized');
+            setCurrentCategory(currentImage.libImgCategory || 'uncategorized');
             if (categorizationMode === 'ai') {
                 runAiSuggestion();
             }
@@ -435,7 +432,8 @@ export default function ImgLibProcessor() {
     if (!user) return null;
     const baseCollection = collection(firestore, `users/${user.uid}/avatarImgLib`);
     if(filterCategory && filterCategory !== 'all') {
-        return query(baseCollection, where('libImgCategory', '==', filterCategory), orderBy('timestamp', 'desc'));
+        const categoryToQuery = filterCategory === 'uncategorized' ? '' : filterCategory;
+        return query(baseCollection, where('libImgCategory', '==', categoryToQuery), orderBy('timestamp', 'desc'));
     }
     return query(baseCollection, orderBy('timestamp', 'desc'));
   }, [firestore, user, filterCategory]);
@@ -494,7 +492,6 @@ export default function ImgLibProcessor() {
 
 
   useEffect(() => {
-    // Clear selection when filter changes
     setSelectedIds(new Set());
   }, [filterCategory]);
 
@@ -633,7 +630,7 @@ export default function ImgLibProcessor() {
 
     const backupData = allLibImages.map(img => ({
         ...img,
-        timestamp: img.timestamp.toDate().toISOString() // Convert Firestore Timestamp to ISO string
+        timestamp: img.timestamp.toDate().toISOString()
     }));
 
     const jsonString = JSON.stringify(backupData, null, 2);
@@ -916,8 +913,8 @@ export default function ImgLibProcessor() {
         await batch.commit();
 
         toast({ title: 'Success', description: `${recordsToDelete.length} image(s) deleted from library.`});
-        closeDialog(); // For single and bulk deletion dialogs
-        setSelectedIds(new Set()); // Clear selection
+        closeDialog(); 
+        setSelectedIds(new Set()); 
     } catch (error) {
         console.error("Delete failed:", error);
         toast({ variant: 'destructive', title: 'Error', description: 'Could not delete image(s).' });
@@ -990,6 +987,10 @@ export default function ImgLibProcessor() {
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent>
                                     <DropdownMenuLabel>Move to...</DropdownMenuLabel>
+                                     <DropdownMenuItem onSelect={() => openDialog({ type: 'bulk-categorize', records: selectedRecords })}>
+                                        <Wand2 className="mr-2 h-4 w-4" />
+                                        Suggest with AI...
+                                    </DropdownMenuItem>
                                     <DropdownMenuSeparator/>
                                      <DropdownMenuItem onSelect={() => handleBulkCategorize('uncategorized')}>Uncategorized</DropdownMenuItem>
                                      {sortedCategories.map(cat => (
@@ -1026,6 +1027,7 @@ export default function ImgLibProcessor() {
                                     <DropdownMenuLabel>Category</DropdownMenuLabel>
                                     <DropdownMenuRadioGroup value={filterCategory || 'all'} onValueChange={(v) => setFilterCategory(v)}>
                                         <DropdownMenuRadioItem value="all">All Categories</DropdownMenuRadioItem>
+                                        <DropdownMenuRadioItem value="uncategorized">Uncategorized</DropdownMenuRadioItem>
                                         <DropdownMenuSeparator/>
                                         {categoriesLoading ? <DropdownMenuItem disabled>Loading...</DropdownMenuItem> :
                                             sortedCategories.map(cat => <DropdownMenuRadioItem key={cat.id} value={cat.name}>{cat.name}</DropdownMenuRadioItem>)
@@ -1036,9 +1038,9 @@ export default function ImgLibProcessor() {
 
                             <Tooltip>
                             <TooltipTrigger asChild>
-                                <Button variant="outline" onClick={() => openDialog({ type: 'bulk-categorize-uncategorized' })} disabled={uncategorizedImages.length === 0}>
+                                <Button variant="outline" onClick={() => openDialog({ type: 'bulk-categorize', records: uncategorizedImages })} disabled={uncategorizedImages.length === 0}>
                                     <FolderSync className="mr-2 h-4 w-4" />
-                                    Bulk Categorize (AI)
+                                    Categorize Uncategorized
                                 </Button>
                             </TooltipTrigger>
                             <TooltipContent><p>Review AI category suggestions for all uncategorized images.</p></TooltipContent>
@@ -1156,7 +1158,6 @@ export default function ImgLibProcessor() {
             )}
         </div>
 
-        {/* Create/Edit/Restore Dialog */}
         <Dialog open={!!dialogState && (dialogState.type === 'create' || dialogState.type === 'edit' || dialogState.type === 'restore')} onOpenChange={(isOpen) => !isOpen && closeDialog()}>
             <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
@@ -1246,15 +1247,14 @@ export default function ImgLibProcessor() {
             </DialogContent>
         </Dialog>
 
-        {dialogState?.type === 'bulk-categorize-uncategorized' && (
+        {dialogState?.type === 'bulk-categorize' && (
             <BulkCategorizeDialog 
-                imagesToCategorize={uncategorizedImages}
+                imagesToCategorize={dialogState.records}
                 allCategories={sortedCategories}
                 onOpenChange={(isOpen) => !isOpen && closeDialog()}
             />
         )}
 
-        {/* Delete Confirmation Dialog */}
         <AlertDialog open={dialogState?.type === 'delete'} onOpenChange={(isOpen) => !isOpen && closeDialog()}>
             <AlertDialogContent>
                 <AlertDialogHeader>
@@ -1272,7 +1272,6 @@ export default function ImgLibProcessor() {
             </AlertDialogContent>
       </AlertDialog>
       
-      {/* Bulk Delete Confirmation */}
       <AlertDialog open={dialogState?.type === 'bulk-delete-selected'} onOpenChange={(isOpen) => !isOpen && closeDialog()}>
             <AlertDialogContent>
                 <AlertDialogHeader>
@@ -1290,7 +1289,6 @@ export default function ImgLibProcessor() {
             </AlertDialogContent>
         </AlertDialog>
 
-      {/* Clear Categories Confirmation Dialog */}
       <AlertDialog open={dialogState?.type === 'clear-categories'} onOpenChange={(isOpen) => !isOpen && closeDialog()}>
             <AlertDialogContent>
                 <AlertDialogHeader>

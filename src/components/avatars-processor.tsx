@@ -673,10 +673,9 @@ export default function AvatarsProcessor() {
                 <DialogHeader>
                     <DialogTitle>{dialogState?.type === 'create' ? 'Create New Avatar' : 'Edit Avatar'}</DialogTitle>
                 </DialogHeader>
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 max-h-[80vh] overflow-y-auto p-1">
-                    
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 p-1">
                     {/* Left Column: Form Fields */}
-                    <div className="flex flex-col gap-4">
+                    <div className="space-y-4">
                         <div className="space-y-2">
                             <Label htmlFor="avatarName">Avatar Name</Label>
                             <Input id="avatarName" value={avatarName} onChange={e => setAvatarName(e.target.value)} disabled={isLoadingAction} />
@@ -832,3 +831,5 @@ export default function AvatarsProcessor() {
     </TooltipProvider>
   );
 }
+
+    

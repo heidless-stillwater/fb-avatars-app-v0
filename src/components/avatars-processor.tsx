@@ -259,6 +259,7 @@ export default function AvatarsProcessor() {
   }, [generatedAvatarUrl, avatarFile, dialogState]);
 
   const openDialog = (state: DialogState) => {
+    setDialogState(state);
     if (state?.type === 'edit') {
         setAvatarName(state.record.avatarName);
         setAvatarDesc(state.record.avatarDesc || '');
@@ -273,23 +274,18 @@ export default function AvatarsProcessor() {
     setGenerateWithAI(false);
     setTestRun(false);
     setGeneratedAvatarUrl(null);
-    setDialogState(state);
-    setLibraryPopoverOpen(false); // Ensure popover is closed when dialog opens
   };
 
-  const closeDialog = () => {
-    setDialogState(null);
-  };
-  
   const onDialogStateChange = (open: boolean) => {
     if (!open) {
-      closeDialog();
+      setDialogState(null);
+      setLibraryPopoverOpen(false);
     }
   }
-
+  
   const handleSelectFromLibrary = (imageUrl: string) => {
-    setGeneratedAvatarUrl(imageUrl); // Use generatedAvatarUrl to hold the selected library image URL
-    setAvatarFile(null); // Clear any uploaded file
+    setGeneratedAvatarUrl(imageUrl);
+    setAvatarFile(null);
     setLibraryPopoverOpen(false);
   };
   
@@ -549,7 +545,7 @@ export default function AvatarsProcessor() {
         }
       }
 
-      closeDialog();
+      onDialogStateChange(false);
     } catch (error) {
       console.error("Avatar action failed:", error);
       toast({ variant: 'destructive', title: 'Error', description: 'Could not save avatar.' });
@@ -575,7 +571,7 @@ export default function AvatarsProcessor() {
         }
 
         toast({ title: 'Success', description: `Avatar "${recordToDelete.avatarName}" deleted.`});
-        closeDialog();
+        setDialogState(null);
     } catch (error) {
         console.error("Delete failed:", error);
         toast({ variant: 'destructive', title: 'Error', description: 'Could not delete avatar.' });
@@ -807,7 +803,7 @@ export default function AvatarsProcessor() {
                     </div>
                 </div>
                 <DialogFooter>
-                    <Button variant="outline" onClick={closeDialog} disabled={isLoadingAction}>Cancel</Button>
+                    <Button variant="outline" onClick={() => onDialogStateChange(false)} disabled={isLoadingAction}>Cancel</Button>
                     <Button onClick={handleSubmit} disabled={isLoadingAction || !avatarName.trim() || (dialogState?.type === 'create' && !imagePreviewUrl) || isGeneratingAI}>
                         {isLoadingAction ? <Loader2 className="animate-spin" /> : 'Save'}
                     </Button>
@@ -816,7 +812,7 @@ export default function AvatarsProcessor() {
         </Dialog>
 
         {/* Delete Confirmation Dialog */}
-        <AlertDialog open={dialogState?.type === 'delete'} onOpenChange={(isOpen) => !isOpen && closeDialog()}>
+        <AlertDialog open={dialogState?.type === 'delete'} onOpenChange={(isOpen) => !isOpen && setDialogState(null)}>
             <AlertDialogContent>
                 <AlertDialogHeader>
                     <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
@@ -825,7 +821,7 @@ export default function AvatarsProcessor() {
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                    <AlertDialogCancel onClick={closeDialog}>Cancel</AlertDialogCancel>
+                    <AlertDialogCancel onClick={() => setDialogState(null)}>Cancel</AlertDialogCancel>
                     <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">
                         {isLoadingAction ? <Loader2 className="animate-spin" /> : 'Delete'}
                     </AlertDialogAction>
@@ -835,3 +831,5 @@ export default function AvatarsProcessor() {
     </TooltipProvider>
   );
 }
+
+    

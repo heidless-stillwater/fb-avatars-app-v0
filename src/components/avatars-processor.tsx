@@ -259,7 +259,6 @@ export default function AvatarsProcessor() {
   }, [generatedAvatarUrl, avatarFile, dialogState]);
 
   const openDialog = (state: DialogState) => {
-    setLibraryPopoverOpen(false);
     if (state?.type === 'edit') {
         setAvatarName(state.record.avatarName);
         setAvatarDesc(state.record.avatarDesc || '');
@@ -275,11 +274,18 @@ export default function AvatarsProcessor() {
     setTestRun(false);
     setGeneratedAvatarUrl(null);
     setDialogState(state);
+    setLibraryPopoverOpen(false); // Ensure popover is closed when dialog opens
   };
 
   const closeDialog = () => {
     setDialogState(null);
   };
+  
+  const onDialogStateChange = (open: boolean) => {
+    if (!open) {
+      closeDialog();
+    }
+  }
 
   const handleSelectFromLibrary = (imageUrl: string) => {
     setGeneratedAvatarUrl(imageUrl); // Use generatedAvatarUrl to hold the selected library image URL
@@ -665,7 +671,7 @@ export default function AvatarsProcessor() {
         </div>
 
         {/* Create/Edit Dialog */}
-        <Dialog open={dialogState?.type === 'create' || dialogState?.type === 'edit'} onOpenChange={(isOpen) => !isOpen && closeDialog()}>
+        <Dialog open={dialogState?.type === 'create' || dialogState?.type === 'edit'} onOpenChange={onDialogStateChange}>
             <DialogContent className="sm:max-w-3xl">
                 <DialogHeader>
                     <DialogTitle>{dialogState?.type === 'create' ? 'Create New Avatar' : 'Edit Avatar'}</DialogTitle>
@@ -750,7 +756,7 @@ export default function AvatarsProcessor() {
                                     <Input id="avatarFile" type="file" accept="image/*" ref={fileInputRef} onChange={handleFileChange} disabled={isLoadingAction} className='flex-1' />
                                     <Popover open={libraryPopoverOpen} onOpenChange={setLibraryPopoverOpen}>
                                         <PopoverTrigger asChild>
-                                            <Button variant="outline" size="icon" disabled={isLoadingAction} onClick={() => setLibraryPopoverOpen(prev => !prev)}>
+                                            <Button variant="outline" size="icon" disabled={isLoadingAction}>
                                                 <Library className="h-4 w-4" />
                                             </Button>
                                         </PopoverTrigger>

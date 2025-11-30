@@ -13,7 +13,7 @@ import { Separator } from '@/components/ui/separator';
 
 export default function NanoAndDisplayPage() {
   return (
-    <div className="p-4 sm:p-6 md:p-8 h-full space-y-8">
+    <div className="p-4 sm:p-6 md:p-8 h-full space-y-8 w-full overflow-x-auto">
       <Card>
         <CardHeader>
           <CardTitle>Image Transformation</CardTitle>

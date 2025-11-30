@@ -6,7 +6,7 @@ import TodoProcessor from "@/components/todo-processor";
 
 export default function TodoPage() {
     return (
-        <div className="p-4 sm:p-6 md:p-8 h-full">
+        <div className="p-4 sm:p-6 md:p-8 h-full w-full overflow-x-auto">
             <Card>
                 <CardHeader>
                     <CardTitle>Todo List</CardTitle>

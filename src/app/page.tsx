@@ -26,7 +26,7 @@ export default function Home() {
   }
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 h-full">
+    <div className="p-4 sm:p-6 md:p-8 h-full w-full overflow-x-auto">
       <div className="w-full max-w-7xl mx-auto h-full">
         <FileManager />
       </div>

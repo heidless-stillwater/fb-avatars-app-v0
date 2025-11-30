@@ -21,7 +21,7 @@ export default function AvatarsPage() {
     const [isImageLibraryOpen, setIsImageLibraryOpen] = useState(true);
 
     return (
-        <div className="p-4 sm:p-6 md:p-8 h-full space-y-8">
+        <div className="p-4 sm:p-6 md:p-8 h-full space-y-8 w-full overflow-x-auto">
             <Collapsible open={isAvatarsOpen} onOpenChange={setIsAvatarsOpen} className="space-y-2 md:space-y-4">
                 <div className="flex items-center justify-between rounded-lg border p-3 md:p-4">
                     <div className="space-y-1">

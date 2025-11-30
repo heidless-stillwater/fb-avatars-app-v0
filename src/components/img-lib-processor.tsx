@@ -38,6 +38,7 @@ import {
   Upload,
   Save,
   DownloadCloud,
+  Wand2,
 } from 'lucide-react';
 import JSZip from 'jszip';
 
@@ -100,6 +101,8 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { cn } from '@/lib/utils';
 import { Badge } from './ui/badge';
+import { suggestCategory } from '@/ai/flows/suggest-category-flow';
+
 
 interface LibImageRecord {
   id: string;
@@ -230,6 +233,7 @@ export default function ImgLibProcessor() {
   const [restoreFile, setRestoreFile] = useState<File | null>(null);
 
   const [isLoadingAction, setIsLoadingAction] = useState(false);
+  const [isCategorizing, setIsCategorizing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -478,6 +482,67 @@ export default function ImgLibProcessor() {
     reader.readAsText(restoreFile);
   };
   
+    const dataUrlFromImageUrl = async (imageUrl: string): Promise<string> => {
+        const response = await fetch(imageUrl);
+        const blob = await response.blob();
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    };
+
+    const handleAutoCategorize = async () => {
+        if (!allLibImages || !user) {
+            toast({ variant: 'destructive', title: 'No Images', description: 'There are no images to categorize.' });
+            return;
+        }
+
+        const uncategorizedImages = allLibImages.filter(img => !img.libImgCategory || img.libImgCategory === 'uncategorized');
+
+        if (uncategorizedImages.length === 0) {
+            toast({ title: 'All Set!', description: 'All images are already categorized.' });
+            return;
+        }
+
+        setIsCategorizing(true);
+        toast({ title: 'Starting AI Categorization', description: `Found ${uncategorizedImages.length} images to process.` });
+
+        try {
+            const batch = writeBatch(firestore);
+            const categoryPromises = uncategorizedImages.map(async (image) => {
+                try {
+                    const dataUri = await dataUrlFromImageUrl(image.libImg);
+                    const result = await suggestCategory({ photoDataUri: dataUri });
+                    const newCategory = result.category;
+                    const docRef = doc(firestore, `users/${user.uid}/avatarImgLib`, image.id);
+                    batch.update(docRef, { libImgCategory: newCategory });
+                    
+                    const categoryExists = allCategories?.some(c => c.name.toLowerCase() === newCategory.toLowerCase());
+                    if (!categoryExists) {
+                        const newCategoryDoc = { name: newCategory, userId: user.uid };
+                        const newCategoryRef = doc(collection(firestore, `users/${user.uid}/categories`));
+                        batch.set(newCategoryRef, newCategoryDoc);
+                    }
+                } catch (err) {
+                    console.error(`Failed to categorize image ${image.id}:`, err);
+                }
+            });
+
+            await Promise.all(categoryPromises);
+            await batch.commit();
+
+            toast({ title: 'Categorization Complete', description: `Successfully categorized ${uncategorizedImages.length} images.` });
+
+        } catch (error) {
+            console.error('Auto-categorization failed:', error);
+            toast({ variant: 'destructive', title: 'Error', description: 'An error occurred during bulk categorization.' });
+        } finally {
+            setIsCategorizing(false);
+        }
+    };
+
   const uploadImage = async (file: File, userId: string): Promise<{ downloadURL: string, storagePath: string }> => {
     const storagePath = `users/${userId}/avatarImgLib/${uuidv4()}-${file.name}`;
     const fileStorageRef = storageRef(storage, storagePath);
@@ -634,7 +699,7 @@ export default function ImgLibProcessor() {
       <CardContent>
         <div className="space-y-4">
             <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-                <div className='flex gap-2 items-center'>
+                <div className='flex gap-2 items-center flex-wrap'>
                   <DropdownMenu>
                       <Tooltip>
                           <TooltipTrigger asChild>
@@ -658,6 +723,14 @@ export default function ImgLibProcessor() {
                           </DropdownMenuRadioGroup>
                       </DropdownMenuContent>
                   </DropdownMenu>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button variant="outline" size="icon" onClick={handleAutoCategorize} disabled={isCategorizing || !allLibImages || allLibImages.length === 0}>
+                                {isCategorizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent><p>Auto-Categorize All (AI)</p></TooltipContent>
+                    </Tooltip>
                   <Tooltip>
                       <TooltipTrigger asChild>
                            <Button variant="outline" size="icon" onClick={handleDownloadAll} disabled={allLibImagesLoading || !allLibImages || allLibImages.length === 0 || isLoadingAction}>

@@ -511,6 +511,8 @@ export default function ImgLibProcessor() {
 
         try {
             const batch = writeBatch(firestore);
+            const categoriesToCreate = new Set<string>();
+
             const categoryPromises = uncategorizedImages.map(async (image) => {
                 try {
                     const dataUri = await dataUrlFromImageUrl(image.libImg);
@@ -521,9 +523,7 @@ export default function ImgLibProcessor() {
                     
                     const categoryExists = allCategories?.some(c => c.name.toLowerCase() === newCategory.toLowerCase());
                     if (!categoryExists) {
-                        const newCategoryDoc = { name: newCategory, userId: user.uid };
-                        const newCategoryRef = doc(collection(firestore, `users/${user.uid}/categories`));
-                        batch.set(newCategoryRef, newCategoryDoc);
+                       categoriesToCreate.add(newCategory);
                     }
                 } catch (err) {
                     console.error(`Failed to categorize image ${image.id}:`, err);
@@ -531,9 +531,16 @@ export default function ImgLibProcessor() {
             });
 
             await Promise.all(categoryPromises);
+
+            categoriesToCreate.forEach(catName => {
+                const newCategoryDoc = { name: catName, userId: user.uid };
+                const newCategoryRef = doc(collection(firestore, `users/${user.uid}/categories`));
+                batch.set(newCategoryRef, newCategoryDoc);
+            });
+
             await batch.commit();
 
-            toast({ title: 'Categorization Complete', description: `Successfully categorized ${uncategorizedImages.length} images.` });
+            toast({ title: 'Categorization Complete', description: `Successfully processed ${uncategorizedImages.length} images.` });
 
         } catch (error) {
             console.error('Auto-categorization failed:', error);
@@ -725,7 +732,7 @@ export default function ImgLibProcessor() {
                   </DropdownMenu>
                     <Tooltip>
                         <TooltipTrigger asChild>
-                            <Button variant="outline" size="icon" onClick={handleAutoCategorize} disabled={isCategorizing || !allLibImages || allLibImages.length === 0}>
+                            <Button variant="outline" size="icon" onClick={handleAutoCategorize} disabled={isCategorizing || allLibImagesLoading || !allLibImages || allLibImages.length === 0}>
                                 {isCategorizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
                             </Button>
                         </TooltipTrigger>
@@ -741,7 +748,7 @@ export default function ImgLibProcessor() {
                   </Tooltip>
                    <Tooltip>
                         <TooltipTrigger asChild>
-                             <Button variant="outline" size="icon" onClick={handleBackup} disabled={!allLibImages || allLibImages.length === 0}>
+                             <Button variant="outline" size="icon" onClick={handleBackup} disabled={allLibImagesLoading || !allLibImages || allLibImages.length === 0}>
                                 <Save className="h-4 w-4" />
                             </Button>
                         </TooltipTrigger>
@@ -814,7 +821,7 @@ export default function ImgLibProcessor() {
                     <div className="flex flex-col items-center justify-center h-64 rounded-md border border-dashed text-sm text-muted-foreground">
                         <ImageIcon className="h-10 w-10 mb-2" />
                         <p>Your image library is empty.</p>
-                         {filterCategory && <p className='text-xs mt-1'>Try selecting 'All Categories'.</p>}
+                         {filterCategory && filterCategory !== 'all' && <p className='text-xs mt-1'>Try selecting 'All Categories'.</p>}
                     </div>
                 )
             )}
@@ -914,3 +921,5 @@ export default function ImgLibProcessor() {
     </TooltipProvider>
   );
 }
+
+    

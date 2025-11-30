@@ -182,7 +182,7 @@ export default function CategoryProcessor() {
         const categoryDocRef = doc(firestore, `users/${user.uid}/categories`, categoryToDelete.id);
         batch.delete(categoryDocRef);
         
-        // Find all images with the category and unset it
+        // Find all images with the category and unset it (or set to a default)
         const imagesQuery = query(
             collection(firestore, `users/${user.uid}/avatarImgLib`),
             where('libImgCategory', '==', categoryToDelete.name)
@@ -194,7 +194,7 @@ export default function CategoryProcessor() {
         });
         
         await batch.commit();
-        toast({ title: 'Success', description: `Deleted category and updated ${snapshot.size} image(s).`});
+        toast({ title: 'Success', description: `Deleted category and re-assigned ${snapshot.size} image(s) to 'Uncategorized'.`});
         closeDialog();
     } catch (error) {
         console.error("Category delete failed:", error);
@@ -275,7 +275,7 @@ export default function CategoryProcessor() {
                 <AlertDialogHeader>
                     <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                     <AlertDialogDescription>
-                        This will permanently delete the category "{dialogState?.type === 'delete' && dialogState.category.name}" and remove it from all associated images. The images themselves will not be deleted.
+                        This will permanently delete the category "{dialogState?.type === 'delete' && dialogState.category.name}". Associated images will be moved to 'Uncategorized'.
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -289,3 +289,5 @@ export default function CategoryProcessor() {
     </Card>
   );
 }
+
+    
